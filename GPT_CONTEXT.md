@@ -10,9 +10,11 @@ and adds per-job prediction plus an activation gate. V3 stopped at activation
 with 2 eligible decisions and 1 reorder; there is no positive speedup claim or
 RL loop. See [RESULTS.md](RESULTS.md).
 
-V6 is the next unrun configuration. It binds the model-supply threshold to the
+V6 is complete. It binds the model-supply threshold to the
 four-request client capacity and uses same-problem first-evaluation latency for
-repair prediction. All concurrency and serving settings remain fixed.
+repair prediction. All concurrency and serving settings remained fixed. The
+three paired throughput changes were +0.92%, +1.03% and +2.37%; mean +1.44%,
+with a descriptive interval that includes zero.
 
 | Formal field | Status |
 | --- | --- |

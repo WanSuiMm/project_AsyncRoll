@@ -15,10 +15,12 @@ but only 2 dispatches became eligible and 1 reordered. The activation gate
 stopped the run before comparison, so no positive gain is claimed. See
 [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
 
-V6 keeps the same operating point and makes the supply trigger proactive:
+V6 kept the same operating point and made the supply trigger proactive:
 reordering becomes eligible below the four-request client capacity. Repair jobs
 use their own first-evaluation wall time as an online prior, with ridge fallback
-for initial evaluations. V6 is code-ready and unrun.
+for initial evaluations. It completed all six formal arms with paired throughput
+changes of +0.92%, +1.03% and +2.37% (+1.44% mean; descriptive 95% interval
+[-0.56%, +3.44%]). This is a small consistent point estimate, not a 20% claim.
 
 ## Start here
 

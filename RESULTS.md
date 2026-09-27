@@ -1,5 +1,21 @@
 # Results
 
+## Bounded-concurrency v6 formal comparison
+
+V6 passed its activation gate with 38 eligible decisions, 19 reorders and
++0.559 same-problem repair prediction correlation, then completed all six formal
+arms. AsyncRoll's paired throughput changes relative to FIFO were **+0.92%,
++1.03%, and +2.37%**. The paired mean was **+1.44%** with a descriptive 95% t
+interval of **[-0.56%, +3.44%]** across three pairs. Pooled completed work over
+measured time gives +1.44% as well. All three point estimates are positive, but
+the interval includes zero; this is a small consistent engineering gain rather
+than evidence for a 20% improvement.
+
+The three AsyncRoll arms made 26, 34 and 28 reorder decisions. Mean exact pass
+rate differed by +0.26 percentage points in AsyncRoll's direction, supporting
+quality comparability rather than a quality claim. The canonical receipt is
+[`results/livecodebench_bounded_20260927_v6/experiment.json`](results/livecodebench_bounded_20260927_v6/experiment.json).
+
 ## Bounded-concurrency v3 activation screen
 
 The fixed 8-active/4-inflight/2-worker run qualified and passed the FIFO CPU

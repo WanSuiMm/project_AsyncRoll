@@ -22,7 +22,9 @@ V6 keeps the 8/4/2 operating point and changes only the mechanism exposed by
 v5: it triggers below the four-request serving capacity and uses each problem's
 first evaluation as the repair-time prior. Its simplified activation gate
 requires 20 eligible decisions, 10 reorders and positive repair prediction
-correlation. V6 is code-ready and unrun.
+correlation. V6 completed all formal arms: paired throughput changes were
++0.92%, +1.03% and +2.37%, with +1.44% mean and a descriptive interval spanning
+zero. The mechanism activated; the result does not support a 20% gain.
 
 The canonical next command uses `scripts/run_lcb_bounded_single_gpu.py` with
 `experiments/livecodebench_bounded_8x4.json`. It re-qualifies the stack, checks
