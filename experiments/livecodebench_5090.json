@@ -9,6 +9,7 @@
   "workload": {
     "repository": "livecodebench/code_generation",
     "revision": "bb83f1c3c643a772b7a2a8f07bd62c2aab76be8f",
+    "source_sha256": "412b80eacab2ac1deb5fc02a067ed3eddbf130f9a121d690bdbf76df09bc81c9",
     "release": "release_v6",
     "selection_seed": 20260927,
     "stdin_only": true,

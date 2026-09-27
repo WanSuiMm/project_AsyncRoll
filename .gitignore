@@ -6,3 +6,4 @@ dist/
 .venv/
 data/
 runs/
+asyncroll-*.tar.gz
