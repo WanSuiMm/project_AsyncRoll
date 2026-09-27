@@ -148,6 +148,45 @@ def _sampling_key(seed: int, record_id: str) -> bytes:
     return hashlib.sha256(payload).digest()
 
 
+def _prepare_record(record: dict[str, Any], source: Path, index: int,
+                    source_sha256: str, seed: int,
+                    stdin_only: bool) -> tuple[str, dict[str, Any]] | None:
+    record_id = _record_id(record, source, index)
+    execution_metadata = _execution_metadata(record, source, index)
+    if stdin_only and execution_metadata.get("func_name"):
+        return None
+    public_tests = _test_cases(record, "public_test_cases", source, index)
+    private_tests = _test_cases(record, "private_test_cases", source, index)
+    if not public_tests and not private_tests:
+        public_tests = _test_cases(record, "test_cases", source, index)
+    if not public_tests and not private_tests:
+        raise ValueError(f"{source}: record {index}: missing non-empty reference test cases")
+    metadata: dict[str, Any] = {
+        "dataset": "livecodebench", "release": "release_v6",
+        "source_record_id": record_id, "source_index": index,
+        "source_sha256": source_sha256, "sample_seed": seed,
+        "reference_tests": {"public": public_tests, "private": private_tests},
+        "execution_metadata": execution_metadata,
+        "prompt_metadata": {
+            "protocol": "one_repair", "language": "python3",
+            "initial_attempts": 1, "repair_attempts": 1, "max_generations": 2,
+            "repair_instruction": _REPAIR_INSTRUCTION,
+            "reference_tests_in_prompt": False,
+        },
+    }
+    for key in ("platform", "contest", "difficulty"):
+        value = record.get(key)
+        if isinstance(value, (str, int, float, bool)):
+            metadata[key] = value
+    return record_id, {
+        "id": record_id, "prompt": _prompt(record, source, index),
+        "tools": [{"name": "lcb_evaluate",
+                   "description": "Submit a complete Python 3 program for hidden evaluation.",
+                   "inputs": {"code": "str"}}],
+        "reference_answer": None, "metadata": metadata,
+    }
+
+
 def convert_livecodebench(source: Path, destination: Path,
                           limit: int | None = None, seed: int = 0,
                           stdin_only: bool = False) -> int:
@@ -173,6 +212,51 @@ def convert_livecodebench(source: Path, destination: Path,
     if source.resolve() == destination.resolve():
         raise ValueError("source and destination must be different files")
 
+    if source.suffix.lower() == ".jsonl":
+        digest = hashlib.sha256()
+        candidates: list[tuple[bytes, str, int]] = []
+        source_ids: set[str] = set()
+        with source.open("rb") as stream:
+            for index, line in enumerate(stream):
+                digest.update(line)
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"{source}:{index + 1}: invalid JSONL record: {exc.msg}"
+                    ) from exc
+                if not isinstance(record, dict):
+                    raise ValueError(f"{source}:{index + 1}: each record must be an object")
+                record_id = _record_id(record, source, index)
+                if record_id in source_ids:
+                    raise ValueError(f"{source}: duplicate problem ID {record_id!r}")
+                source_ids.add(record_id)
+                execution_metadata = _execution_metadata(record, source, index)
+                if stdin_only and execution_metadata.get("func_name"):
+                    continue
+                candidates.append((_sampling_key(seed, record_id), record_id, index))
+        if not candidates:
+            raise ValueError(f"{source}: input contains no problems")
+        chosen = (sorted(candidates)[:limit] if limit is not None and limit < len(candidates)
+                  else candidates)
+        selected_indices = {item[2] for item in chosen}
+        source_sha256 = digest.hexdigest()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        written = 0
+        with source.open(encoding="utf-8-sig") as input_stream, \
+                destination.open("w", encoding="utf-8", newline="\n") as output_stream:
+            for index, line in enumerate(input_stream):
+                if index not in selected_indices:
+                    continue
+                prepared = _prepare_record(json.loads(line), source, index,
+                                           source_sha256, seed, stdin_only)
+                if prepared is not None:
+                    output_stream.write(json.dumps(prepared[1], ensure_ascii=False) + "\n")
+                    written += 1
+        return written
+
     source_bytes = source.read_bytes()
     source_sha256 = hashlib.sha256(source_bytes).hexdigest()
     records = _read_records(source, source_bytes)
@@ -185,58 +269,9 @@ def convert_livecodebench(source: Path, destination: Path,
             raise ValueError(f"{source}: duplicate problem ID {record_id!r}")
         source_ids.add(record_id)
 
-        public_tests = _test_cases(record, "public_test_cases", source, index)
-        private_tests = _test_cases(record, "private_test_cases", source, index)
-        if not public_tests and not private_tests:
-            # Some small exports contain only a combined test_cases field.
-            public_tests = _test_cases(record, "test_cases", source, index)
-        if not public_tests and not private_tests:
-            raise ValueError(
-                f"{source}: record {index}: missing non-empty reference test cases"
-            )
-
-        execution_metadata = _execution_metadata(record, source, index)
-        if stdin_only and execution_metadata.get("func_name"):
-            continue
-        metadata: dict[str, Any] = {
-            "dataset": "livecodebench",
-            "release": "release_v6",
-            "source_record_id": record_id,
-            "source_index": index,
-            "source_sha256": source_sha256,
-            "sample_seed": seed,
-            "reference_tests": {
-                "public": public_tests,
-                "private": private_tests,
-            },
-            "execution_metadata": execution_metadata,
-            "prompt_metadata": {
-                "protocol": "one_repair",
-                "language": "python3",
-                "initial_attempts": 1,
-                "repair_attempts": 1,
-                "max_generations": 2,
-                "repair_instruction": _REPAIR_INSTRUCTION,
-                "reference_tests_in_prompt": False,
-            },
-        }
-        for key in ("platform", "contest", "difficulty"):
-            value = record.get(key)
-            if isinstance(value, (str, int, float, bool)):
-                metadata[key] = value
-
-        output_record = {
-            "id": record_id,
-            "prompt": _prompt(record, source, index),
-            "tools": [{
-                "name": "lcb_evaluate",
-                "description": "Submit a complete Python 3 program for hidden evaluation.",
-                "inputs": {"code": "str"},
-            }],
-            "reference_answer": None,
-            "metadata": metadata,
-        }
-        prepared.append((record_id, output_record))
+        item = _prepare_record(record, source, index, source_sha256, seed, stdin_only)
+        if item is not None:
+            prepared.append(item)
 
     if not prepared:
         raise ValueError(f"{source}: input contains no problems")
