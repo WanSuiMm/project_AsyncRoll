@@ -1,4 +1,4 @@
-"""Run paired vLLM, Transformers, and attention-backend measurements.
+"""Run a paired vLLM versus Transformers fixed-batch measurement.
 
 The output directory is append-only for one invocation. Each measured arm runs
 in a fresh process; vLLM startup and warmup are excluded from timed metrics.
@@ -74,7 +74,7 @@ def ratio(new: float | None, old: float | None) -> float | None:
 def aggregate(stages: list[dict[str, Any]], repeats: int) -> dict[str, Any]:
     by_key = {(stage["replicate"], stage["arm"]): stage for stage in stages
               if stage.get("status") == "complete"}
-    engine, attention = [], []
+    engine = []
 
     def output_match(left: dict[str, Any], right: dict[str, Any]) -> float | None:
         left_samples = {row["id"]: row.get("output_sha256")
@@ -85,9 +85,8 @@ def aggregate(stages: list[dict[str, Any]], repeats: int) -> dict[str, Any]:
         return (sum(left_samples[key] == right_samples[key] for key in shared) / len(shared)
                 if shared else None)
     for replicate in range(1, repeats + 1):
-        transformer = by_key.get((replicate, "transformers_flash_attn_2"))
-        primary = by_key.get((replicate, "vllm_flash_attn"))
-        reference = by_key.get((replicate, "vllm_reference_attention"))
+        transformer = by_key.get((replicate, "transformers_fixed_batch"))
+        primary = by_key.get((replicate, "vllm_online"))
         if transformer and primary:
             engine.append({
                 "replicate": replicate,
@@ -98,17 +97,6 @@ def aggregate(stages: list[dict[str, Any]], repeats: int) -> dict[str, Any]:
                     primary["metrics"]["output_tokens_per_second"],
                     transformer["metrics"]["output_tokens_per_second"]),
                 "exact_output_match_fraction": output_match(primary, transformer),
-            })
-        if reference and primary:
-            attention.append({
-                "replicate": replicate,
-                "requests_per_second_change": ratio(
-                    primary["metrics"]["requests_per_second"],
-                    reference["metrics"]["requests_per_second"]),
-                "output_tokens_per_second_change": ratio(
-                    primary["metrics"]["output_tokens_per_second"],
-                    reference["metrics"]["output_tokens_per_second"]),
-                "exact_output_match_fraction": output_match(primary, reference),
             })
 
     def mean(rows: list[dict[str, Any]], key: str) -> float | None:
@@ -125,33 +113,23 @@ def aggregate(stages: list[dict[str, Any]], repeats: int) -> dict[str, Any]:
             "claim_scope": "vLLM online continuous serving versus Transformers fixed batches; "
                            "both request FlashAttention and greedy decoding.",
         },
-        "flash_attention_vs_reference": {
-            "paired_replicates": attention,
-            "mean_requests_per_second_change": mean(attention, "requests_per_second_change"),
-            "mean_output_tokens_per_second_change": mean(
-                attention, "output_tokens_per_second_change"),
-            "mean_exact_output_match_fraction": mean(attention, "exact_output_match_fraction"),
-            "claim_scope": "vLLM FLASH_ATTN backend versus the configured supported "
-                           "vLLM reference backend.",
-        },
     }
 
 
 def validate_config(config: dict[str, Any]) -> None:
-    if config.get("protocol_id") != "asyncroll-serving-ablation-v1":
+    if config.get("protocol_id") != "asyncroll-vllm-serving-ablation-v1":
         raise ValueError("unexpected protocol_id")
     benchmark = config["benchmark"]
     if benchmark["repeats"] != len(benchmark["orders"]):
         raise ValueError("one order is required per repeat")
-    required = {"transformers_flash_attn_2", "vllm_flash_attn",
-                "vllm_reference_attention"}
+    required = {"transformers_fixed_batch", "vllm_online"}
     for order in benchmark["orders"]:
         if set(order) != required or len(order) != len(required):
             raise ValueError("each order must contain every arm exactly once")
     if config["transformers"]["attention_implementation"] != "flash_attention_2":
         raise ValueError("engine comparison requires FlashAttention 2 on Transformers")
-    if config["attention"]["primary_backend"] != "FLASH_ATTN":
-        raise ValueError("primary attention backend must be FLASH_ATTN")
+    if config["vllm"]["attention_backend"] != "FLASH_ATTN":
+        raise ValueError("both engine arms are intended to use FlashAttention")
 
 
 def main() -> None:
@@ -215,7 +193,7 @@ def main() -> None:
             raise RuntimeError(f"Transformers benchmark exited with {completed.returncode}")
         return json.loads(result_path.read_text(encoding="utf-8"))
 
-    def server_command(backend: str) -> list[str]:
+    def server_command() -> list[str]:
         command = [args.vllm, "serve", str(args.model_path), "--revision", model["revision"],
                    "--served-model-name", model["served_name"], "--host", "127.0.0.1",
                    "--port", str(port), "--dtype", server["dtype"],
@@ -224,18 +202,18 @@ def main() -> None:
                    str(server["max_model_len"]), "--max-num-seqs",
                    str(server["max_num_seqs"]), "--max-num-batched-tokens",
                    str(server["max_num_batched_tokens"]), "--generation-config", "vllm",
-                   "--attention-backend", backend]
+                   "--attention-backend", server["attention_backend"]]
         if server.get("chunked_prefill"):
             command.append("--enable-chunked-prefill")
         if server.get("prefix_caching"):
             command.append("--enable-prefix-caching")
         return command
 
-    def run_vllm(replicate: int, arm_dir: Path, backend: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    def run_vllm(replicate: int, arm_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         result_path = arm_dir / "metrics.json"
         log_path = arm_dir / "vllm.log"
         with log_path.open("w", encoding="utf-8") as log:
-            process = subprocess.Popen(server_command(backend), stdout=log,
+            process = subprocess.Popen(server_command(), stdout=log,
                                        stderr=subprocess.STDOUT, env=environment,
                                        start_new_session=True, text=True)
             try:
@@ -255,18 +233,15 @@ def main() -> None:
                 stop_process(process)
         log_text = log_path.read_text(encoding="utf-8", errors="replace")
         evidence = {
-            "requested_backend": backend,
-            "backend_named_in_log": backend.lower() in log_text.lower(),
+            "requested_backend": server["attention_backend"],
+            "backend_named_in_log": server["attention_backend"].lower() in log_text.lower(),
             "cuda_graph_captured": "Graph capturing finished" in log_text,
         }
         return json.loads(result_path.read_text(encoding="utf-8")), evidence
 
     try:
-        reference_failed = False
         for replicate, order in enumerate(benchmark["orders"], 1):
             for arm in order:
-                if arm == "vllm_reference_attention" and reference_failed:
-                    continue
                 arm_dir = args.output / f"replicate-{replicate}-{arm}"
                 arm_dir.mkdir()
                 stage: dict[str, Any] = {"replicate": replicate, "arm": arm,
@@ -274,26 +249,20 @@ def main() -> None:
                 receipt["stages"].append(stage)
                 write_json(args.output / "experiment.json", receipt)
                 try:
-                    if arm == "transformers_flash_attn_2":
+                    if arm == "transformers_fixed_batch":
                         metrics = run_transformers(replicate, arm_dir)
                     else:
-                        backend = (config["attention"]["primary_backend"] if arm == "vllm_flash_attn"
-                                   else config["attention"]["reference_backend"])
-                        metrics, evidence = run_vllm(replicate, arm_dir, backend)
+                        metrics, evidence = run_vllm(replicate, arm_dir)
                         stage["startup_evidence"] = evidence
                     stage.update(status="complete", finished_utc=now(), metrics=metrics)
                 except Exception as exc:
-                    stage.update(status="unsupported" if arm == "vllm_reference_attention" else "failed",
-                                 finished_utc=now(), error=f"{type(exc).__name__}: {exc}")
-                    if arm == "vllm_reference_attention":
-                        reference_failed = True
-                    else:
-                        raise
+                    stage.update(status="failed", finished_utc=now(),
+                                 error=f"{type(exc).__name__}: {exc}")
+                    raise
                 finally:
                     write_json(args.output / "experiment.json", receipt)
         receipt["aggregate"] = aggregate(receipt["stages"], int(benchmark["repeats"]))
-        receipt["status"] = ("complete_engine_reference_attention_unsupported"
-                             if reference_failed else "complete")
+        receipt["status"] = "complete"
     except BaseException as exc:
         receipt.update(status="failed", error=f"{type(exc).__name__}: {exc}")
         raise

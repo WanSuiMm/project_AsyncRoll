@@ -64,7 +64,7 @@ internal batch size. HTTP duration includes network, server queue and inference.
 | Resource-bounded local code evaluation | `code_executor.evaluate_python` |
 | One-repair state transition | `runtime._trajectory` |
 | Model-only vLLM/Transformers benchmark client | `serving_ablation.benchmark_http`, `benchmark_transformers` |
-| Fresh-process engine and attention-backend ablation | `scripts/run_serving_ablation.py`, `experiments/serving_ablation_5090.json` |
+| Fresh-process vLLM versus Transformers ablation | `scripts/run_serving_ablation.py`, `experiments/serving_ablation_5090.json` |
 
 ## Evidence routing
 
@@ -87,7 +87,7 @@ internal batch size. HTTP duration includes network, server queue and inference.
 - `tests/test_report.py`: independent paired units and missing-cost semantics.
 - `tests/test_serving_ablation.py`: prompt identity, warmup exclusion, greedy
   request settings, metric aggregation and exact-output comparison. These are
-  CPU/mock checks; no vLLM or FlashAttention gain has been measured yet.
+  CPU/mock checks; no vLLM gain has been measured yet.
 - Local `runs/` contains smoke receipts; it is excluded from Git. Read the
   concise summary before raw events. No smoke throughput is a GPU result.
 

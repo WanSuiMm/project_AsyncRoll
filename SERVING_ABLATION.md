@@ -1,21 +1,17 @@
-# Optional vLLM and attention-backend ablation
+# Optional vLLM serving ablation
 
 This is a model-only side measurement. It does not include CPU tools, repair
 execution or AsyncRoll scheduling, and its numbers must not be presented as the
 cause of the completed AsyncRoll scheduler result.
 
-## Questions
+## Question
 
-1. At four concurrent requests, how much faster is vLLM online continuous
-   serving than fixed batches of four from Transformers when both request
-   FlashAttention and use the same greedy prompts and token limit?
-2. Within vLLM, how much does the `FLASH_ATTN` backend change throughput versus
-   the configured supported reference backend?
+At four concurrent requests, how much faster is vLLM online continuous serving
+than fixed batches of four from Transformers when both request FlashAttention
+and use the same greedy prompts and token limit?
 
-The second comparison is a backend comparison, not a claim that all attention
-work has been disabled in the reference arm. If `TRITON_ATTN` is unsupported by
-the installed vLLM build, the runner records the reference as unsupported and
-does not report a FlashAttention speedup.
+FlashAttention is held fixed as part of both stacks. This protocol does not
+measure or claim an independent FlashAttention gain.
 
 ## Frozen measurement
 
@@ -24,7 +20,7 @@ does not report a FlashAttention speedup.
   LiveCodeBench workload.
 - Decoding: greedy, 256 maximum new tokens, fixed seed.
 - Load: concurrency 4 for vLLM and fixed batch size 4 for Transformers.
-- Repetitions: three, with rotated arm order.
+- Repetitions: three paired runs, with alternating arm order.
 - Prefix caching: disabled. Server startup and warmup are excluded.
 - Primary metrics: completed requests/s and output tokens/s. p50/p95 request
   latency and exact output-match fraction are diagnostic checks.
@@ -60,6 +56,5 @@ python scripts/run_serving_ablation.py \
 ```
 
 `experiment.json` is updated after every arm. A valid completed comparison
-requires three paired replicates. `complete_engine_reference_attention_unsupported`
-means the engine comparison finished but the configured reference attention
-backend could not start; no attention-backend gain is then available.
+requires three paired replicates and reports vLLM's change in requests/s and
+output tokens/s relative to the matching Transformers fixed-batch arm.

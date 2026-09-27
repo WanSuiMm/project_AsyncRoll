@@ -1,6 +1,6 @@
 # Incremental review handoff
 
-- Review base: `53c998a3fa795f89b40d8c8967590cd0d805e957`
+- Review base: `1f596effe0ec1ff2056a49b7a8bedfacc864d342`
 - Scheduler evidence head: `1834f2f12a93eb1161bce1b4132f2855cd86e30d`
 - Validation date: 2026-09-28.
 
@@ -9,23 +9,20 @@
 This update adds an optional model-only benchmark. No new GPU experiment or
 result is included, because the rental server was already shut down.
 
-The harness answers two separate engineering questions:
+The harness answers one engineering question:
 
-1. vLLM online continuous serving versus Transformers fixed batches, with both
-   sides requesting FlashAttention, the same prompts, greedy decoding, a
-   four-request/batch load and the same output-token limit.
-2. vLLM `FLASH_ATTN` versus a configured supported vLLM reference attention
-   backend, with all other server settings fixed.
+vLLM online continuous serving versus Transformers fixed batches, with both
+sides requesting FlashAttention, the same prompts, greedy decoding, a
+four-request/batch load and the same output-token limit.
 
-It runs three rotated replicates, starts a fresh process for every arm, excludes
+It runs three paired replicates, starts a fresh process for every arm, excludes
 startup and eight warmup prompts, disables prefix caching, and records request
-rate, output-token rate, latency and exact output-match fraction. If the
-reference backend cannot start, the receipt marks it unsupported and emits no
-attention gain.
+rate, output-token rate, latency and exact output-match fraction. FlashAttention
+is held fixed and has no separate gain estimate.
 
 The completed AsyncRoll v6 evidence is unchanged: +1.44% paired mean scheduler
 throughput change with a descriptive interval spanning zero. The new harness
-cannot be used to attribute that result to vLLM or FlashAttention.
+cannot be used to attribute that scheduler result to vLLM.
 
 ## Verification
 
@@ -45,5 +42,3 @@ cannot be used to attribute that result to vLLM or FlashAttention.
 
 1. Is the fixed-batch Transformers comparator labelled narrowly enough?
 2. Does exact-output matching adequately expose decoding drift between arms?
-3. Should a future host replace `TRITON_ATTN` only if startup proves it
-   unsupported, while preserving the replacement in a new configuration?

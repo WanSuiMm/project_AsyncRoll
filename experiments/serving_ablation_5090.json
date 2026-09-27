@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "protocol_id": "asyncroll-serving-ablation-v1",
+  "protocol_id": "asyncroll-vllm-serving-ablation-v1",
   "model": {
     "repository": "Qwen/Qwen2.5-Coder-7B-Instruct",
     "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
@@ -20,9 +20,9 @@
     "seed": 20260928,
     "repeats": 3,
     "orders": [
-      ["transformers_flash_attn_2", "vllm_flash_attn", "vllm_reference_attention"],
-      ["vllm_reference_attention", "vllm_flash_attn", "transformers_flash_attn_2"],
-      ["vllm_flash_attn", "transformers_flash_attn_2", "vllm_reference_attention"]
+      ["transformers_fixed_batch", "vllm_online"],
+      ["vllm_online", "transformers_fixed_batch"],
+      ["transformers_fixed_batch", "vllm_online"]
     ]
   },
   "transformers": {
@@ -38,10 +38,7 @@
     "max_num_batched_tokens": 8192,
     "prefix_caching": false,
     "chunked_prefill": true,
+    "attention_backend": "FLASH_ATTN",
     "startup_timeout_seconds": 1800
-  },
-  "attention": {
-    "primary_backend": "FLASH_ATTN",
-    "reference_backend": "TRITON_ATTN"
   }
 }

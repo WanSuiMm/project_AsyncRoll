@@ -26,7 +26,7 @@ SPEC.loader.exec_module(RUNNER)
 
 
 class ServingAblationTest(unittest.TestCase):
-    def test_config_freezes_matched_engine_and_attention_comparisons(self):
+    def test_config_freezes_single_matched_engine_comparison(self):
         config = json.loads((ROOT / "experiments/serving_ablation_5090.json")
                             .read_text(encoding="utf-8"))
         RUNNER.validate_config(config)
@@ -34,9 +34,10 @@ class ServingAblationTest(unittest.TestCase):
         self.assertEqual(config["transformers"]["batch_size"], 4)
         self.assertEqual(config["transformers"]["attention_implementation"],
                          "flash_attention_2")
-        self.assertEqual(config["attention"]["primary_backend"], "FLASH_ATTN")
+        self.assertEqual(config["vllm"]["attention_backend"], "FLASH_ATTN")
         self.assertFalse(config["vllm"]["prefix_caching"])
         self.assertEqual(config["benchmark"]["repeats"], 3)
+        self.assertTrue(all(len(order) == 2 for order in config["benchmark"]["orders"]))
 
     def test_prompt_loading_digest_and_summary(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -95,16 +96,13 @@ class ServingAblationTest(unittest.TestCase):
                 "requests_per_second": rps, "output_tokens_per_second": token_rate,
                 "samples": [{"id": "x", "ok": True, "output_sha256": output}]}}
         result = RUNNER.aggregate([
-            stage("transformers_flash_attn_2", 1.0, 10.0, "same"),
-            stage("vllm_flash_attn", 2.0, 15.0, "same"),
-            stage("vllm_reference_attention", 1.6, 12.0, "different"),
+            stage("transformers_fixed_batch", 1.0, 10.0, "same"),
+            stage("vllm_online", 2.0, 15.0, "same"),
         ], repeats=1)
         engine = result["vllm_vs_transformers"]
-        attention = result["flash_attention_vs_reference"]
         self.assertEqual(engine["mean_requests_per_second_change"], 1.0)
         self.assertEqual(engine["mean_exact_output_match_fraction"], 1.0)
-        self.assertAlmostEqual(attention["mean_requests_per_second_change"], 0.25)
-        self.assertEqual(attention["mean_exact_output_match_fraction"], 0.0)
+        self.assertEqual(set(result), {"vllm_vs_transformers"})
 
 
 if __name__ == "__main__":

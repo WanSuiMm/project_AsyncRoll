@@ -27,10 +27,10 @@ correlation. V6 completed all formal arms: paired throughput changes were
 zero. The mechanism activated; the result does not support a 20% gain.
 
 An optional model-only ablation harness is implemented but has not been run.
-It separately compares vLLM online serving with Transformers fixed batches and
-compares vLLM `FLASH_ATTN` with one supported reference attention backend. It
-does not include AsyncRoll scheduling and cannot explain or strengthen the
-completed +1.44% scheduler result. See [SERVING_ABLATION.md](SERVING_ABLATION.md).
+It compares vLLM online serving with Transformers fixed batches while holding
+FlashAttention fixed in both stacks. It does not include AsyncRoll scheduling
+and cannot explain or strengthen the completed +1.44% scheduler result. See
+[SERVING_ABLATION.md](SERVING_ABLATION.md).
 
 The completed scheduler comparison used
 `scripts/run_lcb_bounded_v6_single_gpu.py` with
