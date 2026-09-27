@@ -15,6 +15,11 @@ repair, run the same tests again, and terminate. This adapts LiveCodeBench data
 and test semantics to an online AsyncRoll trajectory. It is not a claim that the
 official offline Self Repair CLI implements this runtime loop.
 
+Code generations use ordinary source output with optional Markdown-fence
+removal. JSON-schema constrained decoding is disabled because live qualification
+showed that grammar-constraining an escaped multi-kilobyte program reduced
+generation throughput to about 5.6 tokens/s and would dominate the measurement.
+
 ## Frozen stages
 
 1. Qualify 8 fixed stdin-style tasks, structured submissions, local execution,

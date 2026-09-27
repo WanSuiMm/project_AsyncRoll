@@ -4,11 +4,20 @@ import unittest
 
 import httpx
 
-from asyncroll.model import GenerationError, VLLMBackend, action_schema, initial_messages
+from asyncroll.model import (GenerationError, VLLMBackend, action_schema,
+                             initial_messages, parse_code_submission)
 from asyncroll.workload import Problem
 
 
 class ModelTest(unittest.TestCase):
+    def test_raw_code_submission_strips_optional_fence(self):
+        self.assertEqual(parse_code_submission("```python\nprint(1)\n```"),
+                         {"type": "submit", "code": "print(1)"})
+        self.assertEqual(parse_code_submission("print(2)"),
+                         {"type": "submit", "code": "print(2)"})
+        with self.assertRaises(ValueError):
+            parse_code_submission("   ")
+
     def test_persistent_async_client_schema_and_overlap(self):
         async def exercise():
             requests = []

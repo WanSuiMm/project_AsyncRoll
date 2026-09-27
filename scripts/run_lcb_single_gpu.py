@@ -81,9 +81,6 @@ def main() -> None:
         arm_dir = args.output / stage
         arm_dir.mkdir(parents=True)
         server_log_path = arm_dir / "vllm.log"
-        structured = json.dumps({"backend": server["structured_outputs_backend"],
-                                 "disable_any_whitespace": server["disable_any_whitespace"]},
-                                separators=(",", ":"))
         command = [args.vllm, "serve", str(args.model_path), "--revision", model["revision"],
                    "--served-model-name", model["served_name"], "--host", "127.0.0.1",
                    "--port", str(port), "--dtype", server["dtype"],
@@ -92,7 +89,12 @@ def main() -> None:
                    str(server["max_model_len"]), "--max-num-seqs",
                    str(server["max_num_seqs"]), "--max-num-batched-tokens",
                    str(server["max_num_batched_tokens"]), "--enable-prefix-caching",
-                   "--enable-chunked-prefill", "--structured-outputs-config", structured]
+                   "--enable-chunked-prefill"]
+        if server.get("structured_outputs_backend"):
+            structured = json.dumps({"backend": server["structured_outputs_backend"],
+                                     "disable_any_whitespace": server["disable_any_whitespace"]},
+                                    separators=(",", ":"))
+            command.extend(["--structured-outputs-config", structured])
         environment = os.environ.copy()
         environment["CUDA_VISIBLE_DEVICES"] = str(args.gpu_index)
         with server_log_path.open("w", encoding="utf-8") as server_log:
@@ -121,6 +123,8 @@ def main() -> None:
                           "--aging-seconds", str(runtime["aging_seconds"]),
                           "--seed", str(seed), "--nvml-device", str(args.gpu_index),
                           "--dedicated-gpu"]
+                if not server.get("structured_outputs_backend"):
+                    client.append("--no-structured-output")
                 with (arm_dir / "client.log").open("w", encoding="utf-8") as client_log:
                     completed = subprocess.run(client, stdout=client_log,
                                                stderr=subprocess.STDOUT, env=environment)

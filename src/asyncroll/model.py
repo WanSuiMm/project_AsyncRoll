@@ -50,6 +50,18 @@ def parse_action(content: str) -> dict[str, Any]:
     return action
 
 
+def parse_code_submission(content: str) -> dict[str, str]:
+    """Accept ordinary source output and remove one optional Markdown fence."""
+    code = content.strip()
+    fenced = re.fullmatch(r"```(?:python|py)?\s*\n?(.*?)\n?```", code,
+                          flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        code = fenced.group(1).strip()
+    if not code:
+        raise ValueError("Model returned an empty code submission")
+    return {"type": "submit", "code": code}
+
+
 def _input_schema(type_name: str) -> dict[str, Any]:
     schemas = {
         "str": {"type": "string"},
@@ -158,7 +170,11 @@ class VLLMBackend:
         try:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            action = parse_action(content)
+            if (not self.structured_output
+                    and problem.metadata.get("prompt_metadata", {}).get("protocol") == "one_repair"):
+                action = parse_code_submission(content)
+            else:
+                action = parse_action(content)
         except Exception as exc:
             raise GenerationError(str(exc), request_seconds=received - started,
                                   parsing_seconds=time.perf_counter() - received,
@@ -171,9 +187,8 @@ def initial_messages(problem: Problem) -> list[dict[str, str]]:
     if problem.metadata.get("prompt_metadata", {}).get("protocol") == "one_repair":
         return [
             {"role": "system", "content": (
-                "Write a complete Python 3 solution. Reply with exactly one JSON object "
-                "of the form {\"type\":\"submit\",\"code\":\"...\"}. Put the complete "
-                "program in code, with JSON escaping, and include no other text.")},
+                "Write a complete Python 3 solution. Return source code only, "
+                "without Markdown fences or explanation.")},
             {"role": "user", "content": problem.prompt},
         ]
     tools = [{key: tool[key] for key in ("name", "description", "inputs")
