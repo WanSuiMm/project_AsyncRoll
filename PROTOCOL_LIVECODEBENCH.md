@@ -1,5 +1,26 @@
 # LiveCodeBench one-repair protocol
 
+## v3 fixed bounded-concurrency optimization (not yet run)
+
+V2 showed that 32 active trajectories hid nearly all CPU evaluator latency and
+that AsyncRoll-v0 made zero reorder decisions. V3 fixes one operating point
+before execution: 8 active trajectories, 4 client model requests, 2 CPU workers,
+vLLM `max_num_seqs=8`, and a 30-second hard starvation deadline. There is no
+concurrency sweep.
+
+The scheduler predicts each queued evaluation from pre-execution test count,
+test-input bytes, generated-code bytes, and initial/repair status using an
+online ridge model. It ranks predicted unlock time with soft aging. A 128-task
+activation arm must record at least 10 eligible decisions, 5 reorders, 5%
+activation, 8 distinct feature keys, and positive predicted/actual log-duration
+correlation before the unchanged three-pair FIFO/AsyncRoll comparison may run.
+FIFO and AsyncRoll receive identical resources and tasks. A 20% improvement is
+an engineering target, not a result or gate.
+
+The frozen configuration and runner are
+[`experiments/livecodebench_bounded_8x4.json`](experiments/livecodebench_bounded_8x4.json)
+and `scripts/run_lcb_bounded_single_gpu.py`. V1 and v2 evidence remains intact.
+
 ## v2 protocol amendment (2026-09-27)
 
 The v1 opportunity screen completed 128/128 tasks and passed four of five

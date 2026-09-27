@@ -1,61 +1,142 @@
-"""Non-preemptive pressure-aware CPU selection, using past observations only."""
+"""Non-preemptive CPU scheduling from observable per-job cost features."""
 
 from __future__ import annotations
 
+import json
 import math
-import statistics
 from dataclasses import dataclass, field
 from typing import Any
 
 
-def tool_key(payload: dict) -> tuple[str, str]:
+def _payload_features(payload: dict[str, Any]) -> tuple[float, ...]:
+    """Return pre-execution features without reading expected test outputs."""
+    cached = payload.get("_scheduling_features")
+    if isinstance(cached, tuple) and len(cached) == 5:
+        return cached
     tool = payload.get("tool") or {}
-    return (tool.get("implementation", "builtin"), tool.get("name", payload["kind"]))
+    bound = tool.get("bound_arguments") or {}
+    tests = bound.get("reference_tests") or {}
+    cases = [case for split in ("public", "private")
+             for case in (tests.get(split) or []) if isinstance(case, dict)]
+    input_bytes = sum(len(json.dumps(case.get("input", ""), ensure_ascii=False,
+                                     separators=(",", ":")).encode("utf-8"))
+                      for case in cases)
+    arguments = payload.get("arguments") or {}
+    code = arguments.get("code", "")
+    code_bytes = len(str(code).encode("utf-8"))
+    repair = int(payload.get("turn", 0) > 0)
+    features = (1.0, math.log1p(len(cases)), math.log1p(input_bytes),
+                math.log1p(code_bytes), float(repair))
+    payload["_scheduling_features"] = features
+    return features
+
+
+def _feature_key(features: tuple[float, ...]) -> str:
+    # Coarse, non-sensitive diagnostics; no hidden test contents are logged.
+    return ":".join(str(round(value, 2)) for value in features[1:])
+
+
+def _solve(matrix: list[list[float]], vector: list[float]) -> list[float]:
+    """Small partial-pivot Gaussian solve for the five-feature ridge model."""
+    augmented = [row[:] + [value] for row, value in zip(matrix, vector)]
+    size = len(vector)
+    for column in range(size):
+        pivot = max(range(column, size), key=lambda row: abs(augmented[row][column]))
+        augmented[column], augmented[pivot] = augmented[pivot], augmented[column]
+        scale = augmented[column][column]
+        if abs(scale) < 1e-12:
+            return [0.0] * size
+        augmented[column] = [value / scale for value in augmented[column]]
+        for row in range(size):
+            if row == column:
+                continue
+            factor = augmented[row][column]
+            augmented[row] = [left - factor * right
+                              for left, right in zip(augmented[row], augmented[column])]
+    return [augmented[row][-1] for row in range(size)]
+
+
+@dataclass
+class OnlineRidge:
+    regularization: float = 2.0
+    observations: int = 0
+    gram: list[list[float]] = field(default_factory=list)
+    target: list[float] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.gram:
+            self.gram = [[self.regularization if i == j else 0.0 for j in range(5)]
+                         for i in range(5)]
+            # A 100 ms prior avoids an unrealistic one-second cold estimate.
+            self.target = [self.regularization * math.log(0.1), 0.0, 0.0, 0.0, 0.0]
+
+    def predict(self, features: tuple[float, ...]) -> float:
+        weights = _solve(self.gram, self.target)
+        log_seconds = sum(weight * value for weight, value in zip(weights, features))
+        return math.exp(max(math.log(0.001), min(math.log(60.0), log_seconds)))
+
+    def observe(self, features: tuple[float, ...], seconds: float) -> None:
+        target = math.log(max(0.001, seconds))
+        for row in range(5):
+            self.target[row] += features[row] * target
+            for column in range(5):
+                self.gram[row][column] += features[row] * features[column]
+        self.observations += 1
 
 
 @dataclass
 class Scheduler:
     policy: str
     starvation_threshold: int = 1
-    aging_seconds: float = 1.0
-    estimates: dict[tuple[str, str], float] = field(default_factory=dict)
+    aging_seconds: float = 30.0
+    aging_weight: float = 0.02
+    predictor: OnlineRidge = field(default_factory=OnlineRidge)
 
     def __post_init__(self) -> None:
-        if self.starvation_threshold < 1 or not math.isfinite(self.aging_seconds) or self.aging_seconds <= 0:
-            raise ValueError("Scheduler threshold and aging deadline must be positive")
+        if (self.starvation_threshold < 1 or not math.isfinite(self.aging_seconds)
+                or self.aging_seconds <= 0 or not math.isfinite(self.aging_weight)
+                or self.aging_weight < 0):
+            raise ValueError("Scheduler threshold, aging deadline and weight must be valid")
 
     def observe(self, payload: dict, seconds: float) -> None:
         if payload["kind"] == "tool" and math.isfinite(seconds) and seconds >= 0:
-            key = tool_key(payload)
-            self.estimates[key] = 0.5 * seconds + 0.5 * self.estimates.get(key, seconds)
+            self.predictor.observe(_payload_features(payload), seconds)
 
     def select(self, jobs: list[Any], now: float, model_outstanding: int) -> tuple[Any, dict]:
-        """Re-evaluate priority at dispatch; a running callable is never preempted.
+        """Choose a queued job using only information available before execution."""
+        oldest = min(jobs, key=lambda job: job.job_id)
+        selected, reason = oldest, "fifo"
 
-        Unknown tools use the median of past observed tool durations (zero before
-        any observation). No arguments, answers, future trace or evaluation labels
-        enter this estimator. New runs start with an empty estimator.
-        """
-        oldest = min(jobs, key=lambda j: j.job_id)
-        reason = "fifo"
-        selected = oldest
-        fallback = statistics.median(self.estimates.values()) if self.estimates else 0.0
-        estimate = lambda j: self.estimates.get(tool_key(j.payload), fallback)
+        def prediction(job: Any) -> float:
+            if job.payload["kind"] != "tool":
+                return 0.0
+            return self.predictor.predict(_payload_features(job.payload))
+
+        eligible = (self.policy == "asyncroll" and len(jobs) > 1
+                    and model_outstanding < self.starvation_threshold)
         if self.policy == "tool_first":
-            selected = min(jobs, key=lambda j: (j.payload["kind"] != "tool", j.job_id))
+            selected = min(jobs, key=lambda job: (job.payload["kind"] != "tool", job.job_id))
             reason = "tool_before_grade"
         elif self.policy == "asyncroll":
-            aged = [j for j in jobs if now - j.enqueued >= self.aging_seconds]
-            if aged:
-                selected = min(aged, key=lambda j: j.job_id)
-                reason = "aging_fifo"
-            elif model_outstanding < self.starvation_threshold:
-                selected = min(jobs, key=lambda j: (j.payload["kind"] != "tool", estimate(j), j.job_id))
-                reason = "low_model_supply_short_observed_tool"
+            expired = [job for job in jobs if now - job.enqueued >= self.aging_seconds]
+            if expired:
+                selected = min(expired, key=lambda job: job.job_id)
+                reason = "hard_starvation_fifo"
+            elif eligible:
+                selected = min(jobs, key=lambda job: (
+                    job.payload["kind"] != "tool",
+                    prediction(job) - self.aging_weight * max(0.0, now - job.enqueued),
+                    job.job_id))
+                reason = "low_model_supply_predicted_unlock"
+
+        features = _payload_features(selected.payload) if selected.payload["kind"] == "tool" else None
         return selected, {
             "reason": reason, "queue_depth": len(jobs),
             "model_outstanding": model_outstanding,
-            "estimated_execute_seconds": estimate(selected),
-            "estimate_known": tool_key(selected.payload) in self.estimates,
+            "estimated_execute_seconds": prediction(selected),
+            "estimate_known": self.predictor.observations > 0,
+            "predictor_observations": self.predictor.observations,
+            "feature_key": _feature_key(features) if features else "grade",
+            "eligible_for_reorder": eligible,
             "oldest_job_id": oldest.job_id, "reordered": selected is not oldest,
         }

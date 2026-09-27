@@ -8,18 +8,18 @@ policy improve completed trajectories per elapsed hour at equal resources?
 
 ## Current status (2026-09-27)
 
-The single-GPU version implements pooled asynchronous HTTP, warm cached tool
-workers, independent concurrency limits, an observed-cost pressure-aware CPU
-policy, vLLM/NVML telemetry, CPU accounting, optional NVTX, and a portable
-experiment launcher. The dedicated RTX 5090 stack qualified on 8/8 tasks. The
-32-task FIFO opportunity screen then found no qualifying CPU scheduling
-opportunity and retained one failed tool call, so the frozen protocol stopped
-before comparison. No speedup, accuracy, or causal bubble-recovery claim is
-established. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
+The runtime implements pooled asynchronous HTTP, warm cached tool workers,
+independent concurrency limits, vLLM/NVML telemetry, optional NVTX and portable
+experiment launchers. The completed 32-active LiveCodeBench v2 comparison found
+-0.37% mean throughput change and zero AsyncRoll reorders. V3 keeps that result
+and fixes a single bounded-concurrency operating point at 8 active trajectories,
+4 model requests and 2 CPU workers. It adds per-job online ridge prediction,
+soft aging and an activation gate. V3 is code-ready and unrun; no positive gain
+is claimed. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
 
-The next experiment is a distinct Qwen2.5-Coder + full LiveCodeBench one-repair
-workload. It keeps the old negative result frozen and re-qualifies the model,
-evaluator and opportunity screen before any FIFO versus AsyncRoll comparison.
+The canonical next command uses `scripts/run_lcb_bounded_single_gpu.py` with
+`experiments/livecodebench_bounded_8x4.json`. It re-qualifies the stack, checks
+that the scheduler actually reorders work, then runs the matched comparison.
 See [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
 
 ## One experiment on a dedicated rented RTX 5090
@@ -41,9 +41,9 @@ See [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
    measured CPU-related idle opportunity. Synthetic sleep is a stress test.
 
 The `asyncroll` policy reorders pending tools when client model supply is low,
-using only past observed callable durations and an aging rule. Unknown tools
-initially fall back to FIFO. If tools are tiny, unique or never queue, this
-policy may have no useful leverage; preserve that negative result. The legacy
+using an online per-job predictor over information available before execution.
+Soft aging balances predicted unlock time; a 30-second deadline prevents
+starvation. If the activation gate fails, stop before comparison. The legacy
 `tool_first` baseline only prioritizes tools over grading and is not the formal
 comparison. See [PROTOCOL.md](PROTOCOL.md) for the hypothesis and stop rules.
 

@@ -2,18 +2,18 @@
 
 ## Current answer and boundaries
 
-The live single-GPU stack qualified, but the frozen FIFO opportunity screen
-found no useful CPU scheduling leverage: CPU-blocked time and CPU-related idle
-candidate time were both zero, maximum CPU queue depth was one, and tool queue
-p95 was 1.707 ms. The pre-registered stop rule fired before comparison. There
-is no FIFO versus AsyncRoll result, demonstrated speedup, math-equivalence
-grading, or RL loop. See [RESULTS.md](RESULTS.md).
+The completed LiveCodeBench v2 comparison measured -0.37% mean AsyncRoll
+throughput change across three matched pairs. Every AsyncRoll arm recorded zero
+reorders, so v2 is a non-discriminative FIFO-equivalent baseline rather than a
+test of informed CPU ordering. V3 fixes one 8-active/4-inflight/2-worker point
+and adds per-job prediction plus an activation gate. V3 is unrun; there is no
+positive speedup claim or RL loop. See [RESULTS.md](RESULTS.md).
 
 | Formal field | Status |
 | --- | --- |
-| Qualification | `qualified` (8/8 completed and used a tool) |
-| Opportunity screen | `stopped_no_cpu_opportunity` (31/32 completed) |
-| Formal comparison | Not run |
+| Qualification | v2 qualified |
+| Opportunity screen | v2 passed under its amended protocol |
+| Formal comparison | v2 complete; -0.37% paired mean, zero reorders |
 | Speedup claim | Unsupported |
 
 The pending code-agent experiment has its own protocol ID and configuration:
@@ -25,7 +25,7 @@ used to rewrite the ToolMATH screen.
 | --- | --- | --- |
 | `sync` | One active trajectory | `runtime.run` |
 | `fifo` | Bounded active trajectories; FIFO CPU queue | `CPUQueue.submit` |
-| `asyncroll` | Low client model supply triggers shortest observed tool first; aging restores FIFO | `scheduling.Scheduler.select` |
+| `asyncroll` | Low model supply triggers per-job predicted unlock ordering with soft and hard aging | `scheduling.Scheduler.select` |
 | `tool_first` | Same admission; tools before terminal grading | `CPUQueue.submit` |
 
 `gpu_first` is a deprecated alias of `tool_first`, not a pressure-aware
@@ -41,7 +41,7 @@ internal batch size. HTTP duration includes network, server queue and inference.
 | Persistent asynchronous HTTP, schema request, parsing | `model.VLLMBackend.generate`, `action_schema` |
 | Bounded admission, warmup exclusion, phase summaries | `runtime.run`, `_trajectory`, `summarize` |
 | Non-preemptive CPU policy and identified jobs | `runtime.CPUQueue` |
-| Pressure signal, past-cost estimate, aging, dispatch decisions | `scheduling.Scheduler.select`, `observe` |
+| Pressure signal, online ridge prediction, aging, dispatch decisions | `scheduling.Scheduler.select`, `OnlineRidge` |
 | Sampled CPU-related starvation and coverage | `metrics.resource_metrics` |
 | Whole client/worker process CPU accounting | `runtime.run`, `workers.Worker.cpu_time` |
 | Async-safe NVTX and real worker execution ranges | `profiling.Profiler`, `runtime.Recorder.emit`, `workers._serve` |

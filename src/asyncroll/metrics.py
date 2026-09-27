@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 
 
 def _finite(value):
     return isinstance(value, (int, float)) and math.isfinite(value) and value >= 0
+
+
+def _pearson(pairs: list[tuple[float, float]]) -> float | None:
+    if len(pairs) < 3:
+        return None
+    xs, ys = zip(*pairs)
+    mean_x, mean_y = sum(xs) / len(xs), sum(ys) / len(ys)
+    numerator = sum((x - mean_x) * (y - mean_y) for x, y in pairs)
+    denominator = math.sqrt(sum((x - mean_x) ** 2 for x in xs)
+                            * sum((y - mean_y) ** 2 for y in ys))
+    return numerator / denominator if denominator else None
 
 
 def resource_metrics(events: list[dict], elapsed: float, completed: int,
@@ -59,6 +71,14 @@ def resource_metrics(events: list[dict], elapsed: float, completed: int,
         if gpu_valid and max(gpu) <= low_gpu_percent:
             candidate += overlap
     decisions = [e for e in events if e["event"] == "cpu_selected"]
+    actual_by_job = {e["job_id"]: e.get("execute_seconds") for e in events
+                     if e["event"] in {"cpu_finished", "cpu_failed"}}
+    prediction_pairs = [(math.log(max(0.001, e["estimated_execute_seconds"])),
+                         math.log(max(0.001, actual_by_job[e["job_id"]])))
+                        for e in decisions if _finite(e.get("estimated_execute_seconds"))
+                        and _finite(actual_by_job.get(e["job_id"]))]
+    eligible = [e for e in decisions if e.get("eligible_for_reorder")]
+    reason_counts = Counter(e.get("reason", "unknown") for e in decisions)
     return {
         "completed_per_gpu_hour": completed / elapsed * 3600 if dedicated_gpu and elapsed else None,
         "dedicated_single_gpu_declared": dedicated_gpu,
@@ -71,7 +91,15 @@ def resource_metrics(events: list[dict], elapsed: float, completed: int,
         "scheduler_decisions": len(decisions),
         "cpu_max_queue_depth": max((e["queue_depth"] for e in decisions), default=0),
         "scheduler_reorders": sum(e["reordered"] for e in decisions),
+        "scheduler_eligible_decisions": len(eligible),
+        "scheduler_activation_rate": (sum(e["reordered"] for e in eligible) / len(eligible)
+                                      if eligible else None),
+        "scheduler_reason_counts": dict(sorted(reason_counts.items())),
+        "scheduler_distinct_feature_keys": len({e.get("feature_key") for e in decisions
+                                                  if e.get("feature_key") not in {None, "grade"}}),
         "known_cost_decisions": sum(e["estimate_known"] for e in decisions),
+        "prediction_log_pearson": _pearson(prediction_pairs),
+        "prediction_pairs": len(prediction_pairs),
         "interpretation": "Sampled empty vLLM queues overlapping pending CPU continuations and no "
                           "client model work. Endpoints do not prove continuous server idleness. "
                           "Low NVML activity yields a candidate, not recoverable GPU time. "

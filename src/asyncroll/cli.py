@@ -63,7 +63,10 @@ def main() -> None:
     bench.add_argument("--telemetry-interval", type=float, default=0.2)
     bench.add_argument("--seed", type=int, default=0, help="Model decoding seed; not a determinism guarantee")
     bench.add_argument("--starvation-threshold", type=int, default=1)
-    bench.add_argument("--aging-seconds", type=float, default=1.0)
+    bench.add_argument("--aging-seconds", type=float, default=30.0,
+                       help="Hard starvation deadline for queued CPU jobs")
+    bench.add_argument("--aging-weight", type=float, default=0.02,
+                       help="Seconds removed from predicted cost per queued second")
     bench.add_argument("--nvtx", action="store_true", help="Diagnostic Nsight ranges; requires profiling extra")
     bench.add_argument("--dedicated-gpu", action="store_true", help="Declare one dedicated GPU for measured allocation-hour rate")
     args = parser.parse_args()
@@ -82,7 +85,7 @@ def main() -> None:
         parser.error("--dedicated-gpu requires a real vLLM backend")
     if min(args.cpu_workers, args.max_active_trajectories, args.max_inflight_model_requests,
            args.max_turns, args.max_tokens, args.tool_timeout, args.worker_startup_timeout,
-           args.request_timeout, args.telemetry_interval, args.starvation_threshold, args.aging_seconds) <= 0 or args.warmup_requests < 0:
+           args.request_timeout, args.telemetry_interval, args.starvation_threshold, args.aging_seconds) <= 0 or args.warmup_requests < 0 or args.aging_weight < 0:
         parser.error("Limits/timeouts must be positive; warmup count must be nonnegative")
     if args.no_telemetry and (args.metrics_url or args.nvml_device is not None):
         parser.error("Telemetry sources conflict with --no-telemetry")
@@ -137,7 +140,8 @@ def main() -> None:
                 worker_startup_timeout=args.worker_startup_timeout, telemetry=telemetry,
                 event_sink=record, result_sink=record_result,
                 starvation_threshold=args.starvation_threshold,
-                aging_seconds=args.aging_seconds, nvtx_enabled=args.nvtx,
+                aging_seconds=args.aging_seconds, aging_weight=args.aging_weight,
+                nvtx_enabled=args.nvtx,
                 dedicated_gpu=args.dedicated_gpu))
         compact_summary = {key: value for key, value in summary.items() if key != "results"}
         (args.output / "summary.json").write_text(json.dumps(compact_summary, indent=2), encoding="utf-8")

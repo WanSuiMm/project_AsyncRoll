@@ -1,4 +1,4 @@
-"""Run the frozen LiveCodeBench qualification, screen, and gated comparison."""
+"""Run the fixed 8/4/2 bounded-concurrency LiveCodeBench comparison."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def main() -> None:
     if args.output.exists():
         parser.error("--output must be a new directory")
     config = json.loads(args.config.read_text(encoding="utf-8"))
-    if config.get("protocol_id") != "asyncroll-single-5090-qwen-coder-lcb-v2":
+    if config.get("protocol_id") != "asyncroll-bounded-8x4-qwen-coder-lcb-v3":
         parser.error("unexpected protocol_id")
     args.output.mkdir(parents=True)
     receipt = {"status": "running", "protocol_id": config["protocol_id"],
@@ -196,6 +196,29 @@ def main() -> None:
             "pass": opportunity_pass}
         if not opportunity_pass:
             receipt["status"] = "stopped_no_cpu_opportunity"
+            return
+        activation = run_arm("activation-asyncroll", "asyncroll",
+                             int(workload["activation_tasks"]), base_seed + 2000)
+        activation_resources = activation["summary"]["resource_metrics"]
+        activation_gate = config["activation_gate"]
+        activation_values = {
+            "eligible_decisions": activation_resources["scheduler_eligible_decisions"],
+            "reorders": activation_resources["scheduler_reorders"],
+            "activation_rate": activation_resources["scheduler_activation_rate"],
+            "distinct_feature_keys": activation_resources["scheduler_distinct_feature_keys"],
+            "prediction_log_pearson": activation_resources["prediction_log_pearson"],
+        }
+        activation_checks = {
+            "eligible_decisions": activation_values["eligible_decisions"] >= activation_gate["minimum_eligible_decisions"],
+            "reorders": activation_values["reorders"] >= activation_gate["minimum_reorders"],
+            "activation_rate": activation_values["activation_rate"] is not None and activation_values["activation_rate"] >= activation_gate["minimum_activation_rate"],
+            "distinct_feature_keys": activation_values["distinct_feature_keys"] >= activation_gate["minimum_distinct_feature_keys"],
+            "prediction_log_pearson": activation_values["prediction_log_pearson"] is not None and activation_values["prediction_log_pearson"] >= activation_gate["minimum_prediction_log_pearson"],
+        }
+        receipt["activation"] = {"values": activation_values, "checks": activation_checks,
+                                 "pass": all(activation_checks.values())}
+        if not all(activation_checks.values()):
+            receipt["status"] = "stopped_scheduler_not_activated"
             return
         for pair_index, order in enumerate(config["comparison"]["orders"], 1):
             for policy in order:

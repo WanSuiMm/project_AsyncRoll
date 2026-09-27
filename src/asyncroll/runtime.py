@@ -82,13 +82,14 @@ class CPUQueue:
     def __init__(self, workers: int, policy: str, recorder: Recorder,
                  tools: list[dict[str, Any]] | None = None,
                  timeout: float = 60, startup_timeout: float = 120,
-                 starvation_threshold: int = 1, aging_seconds: float = 1,
+                 starvation_threshold: int = 1, aging_seconds: float = 30,
+                 aging_weight: float = 0.02,
                  nvtx_enabled: bool = False):
         self.pending: list[CPUJob] = []
         self.available = asyncio.Event()
         self.closing = False
         self.policy, self.recorder, self.timeout = policy, recorder, timeout
-        self.scheduler = Scheduler(policy, starvation_threshold, aging_seconds)
+        self.scheduler = Scheduler(policy, starvation_threshold, aging_seconds, aging_weight)
         self.workers = [Worker(i, tools or [], startup_timeout, nvtx_enabled=nvtx_enabled) for i in range(workers)]
         self.sequence = 0
         self.tasks: list[asyncio.Task] = []
@@ -122,7 +123,7 @@ class CPUQueue:
             return {"graded": False, "correct": None}
         future = asyncio.get_running_loop().create_future()
         job = CPUJob(problem_id, self.sequence, turn,
-                     dict(kind=kind, tool=tool, arguments=arguments,
+                     dict(kind=kind, turn=turn, tool=tool, arguments=arguments,
                           answer=answer, reference=reference), future, time.perf_counter())
         self.sequence += 1
         self.recorder.emit(problem_id, "cpu_enqueued", **self._fields(job))
@@ -356,7 +357,8 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
               event_sink: Callable[[dict], None] | None = None,
               result_sink: Callable[[dict], None] | None = None,
               gpu_slots: int | None = None, starvation_threshold: int = 1,
-              aging_seconds: float = 1.0, nvtx_enabled: bool = False,
+              aging_seconds: float = 30.0, aging_weight: float = 0.02,
+              nvtx_enabled: bool = False,
               dedicated_gpu: bool = False) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Owns backend/telemetry lifecycle; excludes warmup and shutdown from timing."""
     requested_policy = policy
@@ -371,7 +373,7 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
     if not problems or len({p.id for p in problems}) != len(problems):
         raise ValueError("A nonempty workload with unique IDs is required")
     if min(cpu_workers, max_inflight_model_requests, max_turns,
-           max_active_trajectories, tool_timeout, worker_startup_timeout) <= 0 or warmup_requests < 0:
+           max_active_trajectories, tool_timeout, worker_startup_timeout) <= 0 or warmup_requests < 0 or aging_weight < 0:
         raise ValueError("Limits/timeouts must be positive; warmup count must be nonnegative")
     profiler = None
     recorder = Recorder(sink=event_sink)
@@ -390,7 +392,7 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
         recorder.profiler = profiler
         async with CPUQueue(cpu_workers, policy, recorder, tools, tool_timeout,
                             worker_startup_timeout, starvation_threshold, aging_seconds,
-                            nvtx_enabled) as cpu:
+                            aging_weight, nvtx_enabled) as cpu:
             worker_warmup_seconds = time.perf_counter() - setup_started
             warm_started = time.perf_counter()
             # Bounded batches; never create a task for every trajectory at once.
@@ -449,8 +451,10 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
                            "other processes and startup. Worker IPC boundary skew is included; "
                            "cost is unknown if a worker was killed/replaced.")
         summary["resource_metrics"] = resources
-        summary["scheduler"] = {"starvation_threshold": starvation_threshold, "aging_seconds": aging_seconds,
-                                "estimator": "Per-tool observed execution EWMA alpha=0.5; unknown=median history; reset each run"}
+        summary["scheduler"] = {"starvation_threshold": starvation_threshold,
+                                "aging_seconds": aging_seconds,
+                                "aging_weight": aging_weight,
+                                "estimator": "Online ridge on pre-execution per-job features; reset each run"}
         summary["nvtx_enabled"] = nvtx_enabled
         samples = [e for e in recorder.events if e["event"] == "resource_sample"]
         summary.update(policy=policy, requested_policy=requested_policy,

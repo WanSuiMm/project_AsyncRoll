@@ -4,16 +4,15 @@ AsyncRoll investigates whether CPU scheduling can keep an inference engine fed
 while agent trajectories alternate between model requests and Python tools.
 The current version provides an inference-only runtime, bounded concurrency,
 warm workers, a pressure-aware CPU policy, NVTX instrumentation and a resource
-timeline. The dedicated RTX 5090 run qualified the live stack, but the frozen
-FIFO opportunity screen found no CPU scheduling opportunity. The experiment
-stopped before the FIFO versus AsyncRoll comparison, so there is no speedup or
-GPU-bubble recovery claim. See [RESULTS.md](RESULTS.md).
+timeline. The completed 32-active LiveCodeBench comparison found -0.37% mean
+AsyncRoll throughput change; its AsyncRoll arms made zero reorder decisions and
+therefore tested a FIFO-equivalent policy. That result remains frozen.
 
-A second, separately versioned experiment now targets an online one-repair code
-trajectory using Qwen2.5-Coder-7B-Instruct and the full LiveCodeBench test data.
-Its frozen stages and security boundary are in
-[PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md). It is pending live
-qualification and does not change the ToolMATH verdict.
+The code-ready v3 engineering optimization fixes a latency-sensitive operating
+point at 8 active trajectories, 4 inflight model requests and 2 CPU workers. It
+adds per-job online cost prediction, soft aging and an activation gate before a
+matched FIFO/AsyncRoll comparison. It has not been deployed, and no positive
+gain is claimed. See [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
 
 ## Start here
 
@@ -51,11 +50,11 @@ coverage before interpreting it.
 
 The three limits remain independent knobs, held fixed for the main comparison.
 `asyncroll` checks queued + inflight client model requests at each CPU dispatch.
-Below `--starvation-threshold` (default 1), it favors tool continuations with
-shorter previously observed execution time. Durations are per-callable EWMA;
-unknown tools use the median history and ties use FIFO. After
-`--aging-seconds` (default 1), the oldest aged job wins. This is non-preemptive:
-the aging threshold is not a hard completion deadline. Every choice is logged.
+Below `--starvation-threshold` (default 1), it predicts each tool continuation
+from test count, test-input bytes, generated-code bytes and repair status using
+an online ridge model. The score subtracts `--aging-weight` per queued second;
+after `--aging-seconds` (default 30), the oldest expired job wins. This is
+non-preemptive. Every prediction, reason, eligible decision and reorder is logged.
 
 `sync` admits one trajectory at a time. `fifo` uses CPU arrival order.
 `tool_first` gives queued tool calls priority over queued terminal grading.
@@ -117,6 +116,16 @@ after bounded failure feedback, may submit one repair. Test execution uses a
 fresh temporary directory, resource limits and a low-privilege account when
 launched as root. It remains a local benchmark harness rather than a hardened
 security sandbox and belongs only on a disposable credential-free host.
+
+The fixed bounded-concurrency runner is intentionally a single operating point:
+
+```bash
+python scripts/run_lcb_bounded_single_gpu.py \
+  --config experiments/livecodebench_bounded_8x4.json \
+  --model-path /path/to/Qwen2.5-Coder-7B-Instruct \
+  --workload /path/to/selected-219.jsonl \
+  --output runs/lcb-bounded-8x4
+```
 
 ## One result figure
 
