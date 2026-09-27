@@ -1,77 +1,58 @@
 # Incremental review handoff
 
-- Review base: `5cb6a72d33711085e93e152ddfe5c81abc89d31a`
-- Code/evidence head: `797b6fe94817aa65c607c48def40f20b356346bb`
-- This file is a later documentation-only commit; the evidence head stays fixed.
+- Prior evidence head: `797b6fe94817aa65c607c48def40f20b356346bb`
+- New code/evidence head: `496f4c2e1edf66ab8781aa88140bf0a2f0e13e79`
+- This file is a later documentation-only commit; review the evidence head above.
 - Validation date: 2026-09-27. Release: 0.3.0.
 
 ## What changed
 
-1. The project now has one fixed-resource experiment for a dedicated rented
-   RTX 5090: FIFO versus `asyncroll`. The configuration has 8 qualification
-   tasks, a 32-task opportunity screen, and three alternating-order full-run
-   pairs. A failed/negative screen stops the comparison.
-2. `scheduling.Scheduler` implements a non-preemptive policy using client model
-   supply, per-tool past observed duration and aging. It has no future-work or
-   answer oracle. Unknown tools initially preserve FIFO; ineffective reordering
-   is an admissible negative result.
-3. CPU cost uses whole client/worker process CPU deltas; worker death makes the
-   total unknown. Sampled starvation intersects client state with empty server
-   queues, with explicit coverage and additional NVML idle-candidate criteria.
-4. Optional async-safe NVTX ranges cover model waiting/HTTP, CPU queueing, actual
-   worker execution and the measured window. Nsight wraps server and client
-   descendants. Diagnostic profile timings never enter the formal comparison.
-5. The launcher checks pinned model content digests, workload/tool/code/dependency
-   fingerprints, GPU ownership, selected attention backend and graph-capture
-   evidence. It restarts the server for each arm and preserves owned PID/terminal
-   receipts, partial comparisons and bounded cleanup.
-6. The offline report exports raw paired points, quality/failure counts and one
-   three-panel PDF/PNG. No example speedup numbers have been added.
+1. The action protocol now uses typed tool parameters, requires a tool action on
+   the first turn, and uses bounded second-turn final output. The live server
+   used xgrammar with arbitrary whitespace disabled.
+2. The dedicated RTX 5090 stack qualified: 8/8 trajectories completed, all
+   structured actions were valid, all trajectories used a tool, and vLLM/NVML
+   telemetry was complete.
+3. The frozen 32-task FIFO opportunity screen completed 31 tasks and retained
+   one division-by-zero tool failure. CPU-blocked time and CPU-related idle
+   candidate time were zero, maximum CPU queue depth was one, and tool queue
+   p95 was 1.707 ms.
+4. The pre-registered stop rule fired. The FIFO versus AsyncRoll comparison was
+   not run; the repository makes no speedup or causal bubble-recovery claim.
+5. `RESULTS.md` and `results/single_5090_20260927.json` publish the sanitized
+   aggregate. Raw logs and receipts remain local because they contain deployment
+   paths, process identifiers and device identifiers.
 
 ## Claim boundaries retained
 
-There is no live rented-GPU result, Qwen/ToolMATH protocol qualification,
-demonstrated speedup, mathematical-equivalence accuracy, causal recoverable
-bubble estimate, or RL training. vLLM/NVML/NVTX/Nsight integration still needs the
-actual rental environment. Startup audit rejects unfamiliar/unproven evidence;
-requested flags alone are insufficient. Generic grammar backend log entries do
-not count as attention evidence.
-
-Completed trajectories are not necessarily correct answers. CPU cost excludes
-vLLM serving CPU. Dedicated GPU-hours cover the measured allocation window,
-excluding model loading and warmup. Sampled empty queues do not prove continuous
-CUDA idleness. A short/cheap/unique ToolMATH tool mix may leave no useful schedule
-intervention. Three pairs are a pilot comparison with a 2:1 first-arm imbalance.
+The result establishes that the live inference/tool/telemetry stack ran end to
+end and that this fixed real-tool workload offered no qualifying CPU scheduling
+opportunity. It does not establish answer accuracy, comparative performance,
+recoverable GPU time, or an AsyncRoll benefit. The reported 941.13 completions
+per allocated GPU-hour is a descriptive single-arm measurement whose full
+workload quality gate failed.
 
 ## New verification evidence
 
 | Check | Observed result | Boundary |
 | --- | --- | --- |
-| `python -m unittest discover -s tests -q` | 49 tests passed | Local behavior; GPU/HTTP/NVTX/vendor startup evidence mocked |
-| Scripted AsyncRoll CLI smoke | 3/3 completed, two tool calls, zero failures | No GPU; throughput is not a scientific result |
-| Offline report export | PDF/PNG generated from temporary synthetic fixtures | Export behavior only; fixtures are not experimental data |
-| Packaging | 0.3.0 wheel built; new modules and model manifest included | Rental dependencies/driver remain unqualified |
-| Documentation | Seven Markdown files checked; no missing local link targets | Use editable install from repository root as documented |
-| Delivery | Staged size/whitespace/secret/machine-identifier checks passed | Caches, models, local runs and private receipts excluded |
-
-Targeted tests cover pressure/aging, estimator reset, killed-worker accounting,
-missing telemetry and sample gaps, overlapping NVTX correlation, fresh arm plans,
-UUID/NVML mapping, actual backend versus grammar logs, hash mismatches, failed-arm
-PID persistence, cleanup, and retaining the active Python environment path.
+| Unit/integration suite | 52 tests passed | Local behavior checks |
+| Qualification | 8/8 complete, 100% valid actions and tool use | Live dedicated GPU |
+| Opportunity screen | 31/32 complete; no CPU opportunity gate passed | One FIFO arm only |
+| Telemetry | 591 screen samples, zero collection errors | Sampled observation |
+| Documentation | Local Markdown targets present; result JSON parses | Raw receipts excluded |
+| Delivery audit | Whitespace and sensitive-identifier scans passed | Sanitized aggregate only |
 
 ## Minimal reading order and review questions
 
-1. [PROTOCOL.md](PROTOCOL.md), [single_5090.json](experiments/single_5090.json):
-   are the frozen screen, quality constraints and negative-result interpretation
-   sufficient for a useful pilot?
-2. [scheduling.py](src/asyncroll/scheduling.py), [metrics.py](src/asyncroll/metrics.py):
-   can this past-cost heuristic distinguish real tools, and are sampled
-   associations/cost scope labelled honestly?
-3. [experiment.py](src/asyncroll/experiment.py), [test_experiment.py](tests/test_experiment.py):
-   which rental-specific vLLM/log/driver assumptions still need qualification?
-4. [SINGLE_GPU.md](docs/SINGLE_GPU.md), [MEASUREMENT.md](MEASUREMENT.md):
-   can an independent reader execute the same comparison and explain its trace?
-
-Read concise summaries before per-event logs. Previously reviewed HTTP pooling,
-worker import caching, independent concurrency and baseline timeline code remain
-the foundation; do not infer new empirical evidence from those unchanged pieces.
+1. [RESULTS.md](RESULTS.md) and
+   [single_5090_20260927.json](results/single_5090_20260927.json): do the gate
+   values justify stopping before comparison and keep the negative claim bounded?
+2. [PROTOCOL.md](PROTOCOL.md) and
+   [single_5090.json](experiments/single_5090.json): was the stop decision applied
+   consistently with the frozen protocol?
+3. [model.py](src/asyncroll/model.py) and [test_model.py](tests/test_model.py):
+   is the typed two-turn action protocol sufficiently constrained without hiding
+   model/tool failures?
+4. [MEASUREMENT.md](MEASUREMENT.md): are telemetry coverage and sampled-idle
+   limitations stated clearly enough for a systems reader?
