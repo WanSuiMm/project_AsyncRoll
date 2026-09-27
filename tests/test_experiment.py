@@ -288,7 +288,13 @@ class ExperimentTest(unittest.TestCase):
                              (server.pid, client.pid))
             self.assertTrue(arm_receipt.get("cleanup_completed_utc"))
             self.assertEqual(terminate.call_count, 2)
-            self.assertEqual(spawned[0][1]["CUDA_VISIBLE_DEVICES"], gpu["uuid"])
+            self.assertEqual(
+                spawned[0][1]["CUDA_VISIBLE_DEVICES"], str(gpu["physical_index"])
+            )
+            self.assertEqual(arm_receipt["gpu"]["uuid"], gpu["uuid"])
+            self.assertEqual(
+                arm_receipt["cuda_visible_devices"], str(gpu["physical_index"])
+            )
             client_command = spawned[1][0]
             self.assertNotIn("--nvtx", client_command)
             nvml_arg = client_command.index("--nvml-device")

@@ -870,7 +870,11 @@ def run_arm(config: dict[str, Any], inputs: dict[str, Any], *, output: Path,
                                 output=output / "asyncroll-run", port=port,
                                 limit=limit, nvtx=nvtx)
     env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = gpu["uuid"]
+    # The physical index and UUID were already cross-checked above.  Use the
+    # numeric index for the child environment because some vLLM releases parse
+    # CUDA_VISIBLE_DEVICES as an integer during import and reject valid GPU UUIDs.
+    cuda_visible_device = str(current_gpu["physical_index"])
+    env["CUDA_VISIBLE_DEVICES"] = cuda_visible_device
     env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     env["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
     deadline = config["deadlines"]
@@ -882,7 +886,7 @@ def run_arm(config: dict[str, Any], inputs: dict[str, Any], *, output: Path,
         "vllm_worker_multiproc_method": "spawn",
         "dedicated_single_gpu_declared": True,
         "gpu": current_gpu,
-        "cuda_visible_devices": current_gpu["uuid"],
+        "cuda_visible_devices": cuda_visible_device,
         "nvml_physical_index": current_gpu["physical_index"],
         "server_command": server_cmd,
         "client_command": client_cmd,

@@ -19,9 +19,10 @@ python -m unittest discover -s tests -v
 nvidia-smi
 ```
 
-Only one selected GPU is visible to the serving child. The launcher binds it
-by UUID after checking its physical index, model name, preexisting memory and
-compute processes. NVML uses the matching physical index. It refuses busy or
+Only one selected GPU is visible to the serving child. The launcher verifies
+its physical index and UUID, then passes the verified numeric index to serving
+for compatibility with vLLM releases that parse `CUDA_VISIBLE_DEVICES` as an
+integer. NVML uses the same physical index. It refuses busy or
 non-5090 devices. Do not start unrelated GPU jobs during the experiment.
 
 Default fixed allocation: 2 CPU workers, 16 active trajectories, 4 inflight
