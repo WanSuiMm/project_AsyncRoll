@@ -1,63 +1,84 @@
-# AsyncRoll: GPU-first runtime for tool-using agents
+# AsyncRoll: measured scheduling for tool-using agents
 
-AsyncRoll asks whether CPU tool priority can reduce the time a model GPU
-waits for the next agent turn. It compares sequential trajectories, an
-asynchronous FIFO CPU queue, and an asynchronous queue that prioritizes tools
-which return to the GPU over final grading. The current code is a prototype;
-there are no live benchmark results yet. The proposed Qwen model is not yet
-available in the development environment.
+AsyncRoll investigates whether CPU scheduling can keep an inference engine fed
+while agent trajectories alternate between model requests and Python tools.
+The current version provides an inference-only runtime, bounded concurrency,
+warm workers, phase timing, and a resource timeline. **There is no live vLLM
+performance result or GPU-bubble recovery claim yet.**
 
 ## Start here
 
-1. [PROJECT.md](PROJECT.md) states the question, first screen, and claim boundary.
-2. [GPT_CONTEXT.md](GPT_CONTEXT.md) maps the claims, components, and evidence.
-3. [runtime.py](src/asyncroll/runtime.py) contains the trajectory loop and CPU policies.
-4. [smoke.jsonl](examples/smoke.jsonl) shows the workload schema.
+1. [PROJECT.md](PROJECT.md): question, scope and first experiment stop conditions.
+2. [GPT_CONTEXT.md](GPT_CONTEXT.md): variants, implementation map and evidence.
+3. [MEASUREMENT.md](MEASUREMENT.md): timing definitions, telemetry and confounders.
+4. [runtime.py](src/asyncroll/runtime.py): execution and measurement flow.
 
-## Local smoke
+## Local check
 
-From the repository root, with Python 3.10 or newer:
+From this repository root, with Python 3.10 or newer:
 
 ```powershell
 python -m pip install -e .
 python -m unittest discover -s tests -v
-asyncroll run --workload examples/smoke.jsonl --backend scripted --policy sync --output runs/smoke-sync
-asyncroll run --workload examples/smoke.jsonl --backend scripted --policy fifo --output runs/smoke-fifo
-asyncroll run --workload examples/smoke.jsonl --backend scripted --policy gpu_first --output runs/smoke-gpu-first
+python -m asyncroll.cli run --workload examples/smoke.jsonl --backend scripted --policy fifo --cpu-workers 2 --max-active-trajectories 8 --max-inflight-model-requests 4 --output runs/smoke-fifo
 ```
 
-Each run writes `run.json`, `summary.json`, and `events.jsonl` into a new
-directory. Scripted mode checks behavior only; its throughput is not a GPU
-measurement. `gpu_slots` bounds in-flight model HTTP requests, not vLLM's
-internal batch size.
+Use a new output directory each time. Outputs are `run.json`, `summary.json`,
+line-buffered `events.jsonl`, Chrome/Perfetto `trace.json`, and standalone
+`timeline.html`. Scripted timings check execution behavior only. A complete
+run receipt means the harness finished; inspect failure counts and telemetry
+coverage before interpreting it.
+
+## Independent concurrency controls
+
+| Option | Controls |
+| --- | --- |
+| `--max-active-trajectories` | Admitted trajectories across model/CPU stages |
+| `--max-inflight-model-requests` | Client model calls; not vLLM batch size |
+| `--cpu-workers` | Persistent Python tool/grading processes |
+
+`sync` admits one trajectory at a time. `fifo` uses CPU arrival order.
+`tool_first` gives queued tool calls priority over queued terminal grading.
+It is non-preemptive and does not predict remaining tool duration or inspect GPU
+pressure. **On an unlabelled workload, FIFO and tool-first have the same CPU
+priority ordering**, since there is no grading work. The old `gpu_first` name
+and `--gpu-slots` flag remain compatibility aliases.
 
 ## Live model and ToolMATH
 
-Install and serve a compatible model separately, for example
-[Qwen2.5-Math-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct)
-with vLLM on a suitable GPU. For a live run, install vLLM in that environment
-and start `vllm serve Qwen/Qwen2.5-Math-7B-Instruct`. The backend calls the
-OpenAI-compatible chat completions endpoint and requests strict JSON actions.
-This prompting protocol has **not** yet been qualified for Qwen's native TIR
-format. Parse failures are recorded as failed trajectories.
+Serve a compatible model using vLLM separately. Model acquisition and serving
+are outside this repository. The backend uses a persistent HTTPX AsyncClient
+and requests JSON-schema output by default. Schema compliance is not proof
+that [Qwen2.5-Math-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct)
+can use this action protocol correctly; native TIR qualification remains open.
+An unsupported schema response fails visibly; `--no-structured-output` is an
+explicit separate configuration, never an automatic fallback.
 
-Download [ToolMATH](https://huggingface.co/datasets/CHJ0417/ToolMATH)
-separately, inspect the Python tool archive, and extract it.
-The converter expects the main JSON array and the extracted function directory:
+Inspect the Python functions in [ToolMATH](https://huggingface.co/datasets/CHJ0417/ToolMATH)
+before execution, then convert a reproducible random subset:
 
 ```powershell
-asyncroll convert-toolmath --source data/ToolMATH.json --functions-dir data/function_ToolMATH --output data/toolmath-small.jsonl --limit 100
-asyncroll run --workload data/toolmath-small.jsonl --backend vllm --model Qwen/Qwen2.5-Math-7B-Instruct --policy fifo --cpu-workers 2 --gpu-slots 4 --output runs/toolmath-fifo-001
+python -m asyncroll.cli convert-toolmath --source data/ToolMATH.json --functions-dir data/function_ToolMATH --output data/toolmath-small.jsonl --limit 100 --seed 0
+python -m pip install -e ".[telemetry]"
+python -m asyncroll.cli run --workload data/toolmath-small.jsonl --tool-root data/function_ToolMATH --backend vllm --model Qwen/Qwen2.5-Math-7B-Instruct --policy fifo --cpu-workers 2 --max-active-trajectories 16 --max-inflight-model-requests 4 --warmup-requests 8 --nvml-device 0 --output runs/toolmath-fifo-001
 ```
 
-The converter supplies each problem's named tool and implementation. It does
-not manufacture a trajectory or a verified answer. ToolMATH's source solution
-is not automatically treated as a final-answer label. External tool files are
-imported as Python code in worker processes, so use only trusted files you
-have inspected. The runtime requires the file to define a callable matching
-the declared tool name; incompatible records fail visibly.
+Run this client **on the GPU server** when collecting NVML: `--nvml-device`
+selects a physical NVML device on the client's host, not a remote or
+`CUDA_VISIBLE_DEVICES`-remapped index. Check that it matches the vLLM device.
+The default metrics URL is `http://localhost:8000/metrics`; override it using
+`--metrics-url` and the server address with `--endpoint`. Missing metrics and
+NVML errors stay visible. `--no-telemetry` is for explicit diagnostic runs.
 
-`completed_per_gpu_hour` assumes a one-GPU live run and uses wall time; it
-does not prove actual GPU utilization. Exact accuracy is reported only for
-workloads with explicit `reference_answer` values, using a narrow string
-comparison. A future math-equivalence grader needs independent validation.
+The converter preserves source indices, sample seed and available difficulty/
+category metadata. Function paths are relative to `--tool-root`; no answer
+labels are fabricated from source solutions. Only explicit `reference_answer`
+values produce grading jobs, using normalized string equality.
+
+All workers preload the selected trusted modules and execute a dummy call
+before timed work. Module state persists within each worker; use stateless
+tools for policy comparisons. `--tool-timeout` terminates a stuck worker;
+its replacement is preloaded and recovery overhead remains in the measured
+run. This is not a security sandbox or a descendant-process cleanup mechanism.
+
+See [MEASUREMENT.md](MEASUREMENT.md) before using any throughput number.

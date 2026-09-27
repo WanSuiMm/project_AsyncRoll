@@ -1,59 +1,54 @@
 # AsyncRoll context for reviewers
 
-## Question and current answer
+## Current answer and boundaries
 
-Can a CPU worker queue that favors tools returning to model inference improve
-completed tool-using trajectories per GPU-hour over an asynchronous FIFO queue
-at the same CPU allocation? **No empirical answer exists yet.** The repository
-contains an inference-only prototype and a deterministic scripted smoke test.
-It does not contain a live model run, a GPU utilization trace, an RL loop, or a
-systems performance claim.
+**No empirical answer exists yet** to whether CPU scheduling improves model
+feeding on real ToolMATH trajectories. This inference-only repository has
+local behavior tests and measurement infrastructure. It has no live vLLM
+trace, math-equivalence grading, RL loop, or demonstrated systems speedup.
+Model download receipts and machine operations are intentionally outside Git.
 
-## Variants and implementation
-
-| Variant | What it does | Source |
+| Variant | Definition | Source |
 | --- | --- | --- |
-| `sync` | Runs trajectories sequentially | `runtime.run` |
-| `fifo` | Runs trajectories concurrently and serves CPU jobs in arrival order | `CPUQueue.submit` |
-| `gpu_first` | Gives tool jobs returning to inference priority over terminal grading | `CPUQueue.submit` |
+| `sync` | One active trajectory | `runtime.run` |
+| `fifo` | Bounded active trajectories; FIFO CPU queue | `CPUQueue.submit` |
+| `tool_first` | Same admission; tools before terminal grading | `CPUQueue.submit` |
 
-`_trajectory` alternates model actions with CPU tools. `VLLMBackend` sends
-OpenAI-compatible chat requests; `ScriptedBackend` supplies fixed actions for
-tests. `execute_tool` imports trusted Python tool files into worker processes.
-`convert_toolmath` maps a ToolMATH problem and named tool to this runtime's
-JSONL schema; it does not supply a verified trajectory or answer label.
+`gpu_first` is a deprecated alias of `tool_first`, not a pressure-aware
+scheduler. Without labels, there are no grade jobs and these asynchronous
+policies have the same priority order. Client inflight requests are not vLLM
+internal batch size. HTTP duration includes network, server queue and inference.
 
-The current priority rule is deliberately coarse. It does not use tool progress,
-predict remaining tool time, preempt running work, or modify vLLM internals.
-`gpu_slots` is a client request semaphore, not an observed GPU batch size.
+## Implementation map
 
-## Evidence and claim boundary
+| Concern | Exact entry |
+| --- | --- |
+| Persistent asynchronous HTTP, schema request, parsing | `model.VLLMBackend.generate`, `action_schema` |
+| Bounded admission, warmup exclusion, phase summaries | `runtime.run`, `_trajectory`, `summarize` |
+| Non-preemptive CPU policy and identified jobs | `runtime.CPUQueue` |
+| Persistent spawn workers, deadlines and replacement | `workers.Worker`, `_serve` |
+| Per-process callable/module cache | `tools.load_tool` |
+| Portable seeded workload conversion | `workload.convert_toolmath`, `load_jsonl` |
+| Model-filtered vLLM metrics, optional local NVML | `telemetry.Telemetry`, `parse_vllm_metrics` |
+| Request/queue/worker/trajectory timeline | `timeline.write_timeline`, `build_timeline` |
+| New run directory, event stream and terminal receipt | `cli.main` |
 
-- `tests/test_runtime.py`: four local unit/smoke tests passed on 2026-09-27.
-  The scripted workload completed three of three trajectories. This checks
-  execution flow, not throughput on a GPU.
-- There are no live ToolMATH trajectories or verified performance results.
-- `completed_per_gpu_hour` is wall-clock completion rate under a one-GPU
-  assumption. It is meaningless as a GPU benchmark in scripted mode.
-- `exact_accuracy` compares normalized answer strings only when the workload
-  includes an explicit `reference_answer`. Mathematical equivalence is not
-  established.
-- The requested Qwen instruction model was not successfully acquired as of
-  2026-09-27. This repository does not include model weights or checkpoints.
+## Evidence routing
 
-## First decisive experiment
+- `tests/test_runtime.py`: policies, independent limits, absent no-op grading,
+  warmup/cache behavior and actual process death/replacement after timeout.
+- `tests/test_model.py`: asynchronous overlapping requests, reused client,
+  schema payload, parse errors and total request deadline via mock transport.
+- `tests/test_telemetry.py`: metric parsing/rates/errors and timeline export
+  with synthetic samples. This is not a server/NVML integration result.
+- `tests/test_workload.py`: seeded portable ToolMATH conversion and metadata.
+- Local `runs/` contains smoke receipts; it is excluded from Git. Read the
+  concise summary before raw events. No smoke throughput is a GPU result.
 
-Use one frozen ToolMATH subset and decoding configuration across all three
-policies. Measure real tool-call rate, CPU run and queue times, model request
-times, completed trajectories per elapsed hour, and failures. Compare FIFO to
-GPU-first at identical worker count and trajectory concurrency. Stop the
-scheduling claim if real tools seldom queue or FIFO already hides their delay.
-Server-side GPU telemetry is required before attributing a difference to GPU
-idle recovery. Artificial delay experiments, if added, must be labeled as
-controlled stress tests rather than real-workload results.
+## Review route
 
-## Minimal reading order
-
-Read this file, then `PROJECT.md`, `src/asyncroll/runtime.py`,
-`src/asyncroll/model.py`, and `tests/test_runtime.py`. The sample run outputs
-under `runs/` and downloaded data under `data/` are local and excluded from Git.
+Read [PROJECT.md](PROJECT.md), [MEASUREMENT.md](MEASUREMENT.md), then
+`runtime.py`, `workers.py`, `model.py` and their tests. Review telemetry and
+timeline code for attribution limits. `completed_per_wall_hour` replaces
+the misleading `completed_per_gpu_hour` field. Phase totals overlap across
+trajectories and must not be presented as wall-clock percentages.
