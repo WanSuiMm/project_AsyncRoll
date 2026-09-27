@@ -96,6 +96,8 @@ def evaluate_python(code: str, reference_tests: dict[str, list[Any]],
         if run_uid is not None and run_gid is not None:
             os.chown(program, run_uid, run_gid)
             program.chmod(0o600)
+        interpreter = ("/usr/bin/python3" if run_uid is not None
+                       and Path("/usr/bin/python3").is_file() else sys.executable)
         for index, case in enumerate(tests):
             if not isinstance(case, dict) or "input" not in case or "output" not in case:
                 return {"passed": False, "tests_run": index, "tests_total": len(tests),
@@ -105,7 +107,7 @@ def evaluate_python(code: str, reference_tests: dict[str, list[Any]],
                 return {"passed": False, "tests_run": index, "tests_total": len(tests),
                         "feedback": "evaluation timed out", "timed_out": True}
             code_value, stdout, stderr, timed_out = _run(
-                [sys.executable, "-I", str(program)], root, str(case["input"]),
+                [interpreter, "-I", str(program)], root, str(case["input"]),
                 remaining, memory_mb, run_uid, run_gid)
             if timed_out:
                 return {"passed": False, "tests_run": index + 1,
