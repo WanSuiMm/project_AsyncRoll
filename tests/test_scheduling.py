@@ -4,12 +4,14 @@ from types import SimpleNamespace
 from asyncroll.scheduling import Scheduler
 
 
-def job(number, test_count=1, code_bytes=10, enqueued=0, turn=0, kind="tool"):
+def job(number, test_count=1, code_bytes=10, enqueued=0, turn=0, kind="tool",
+        problem_id=None):
     tests = [{"input": "x" * (10 * test_count), "output": "ignored"}
              for _ in range(test_count)]
     tool = {"name": "lcb_evaluate", "bound_arguments": {
         "reference_tests": {"public": tests, "private": []}}}
-    payload = {"kind": kind, "turn": turn, "tool": tool,
+    payload = {"kind": kind, "problem_id": problem_id or f"p{number}",
+               "turn": turn, "tool": tool,
                "arguments": {"code": "x" * code_bytes}}
     return SimpleNamespace(job_id=number, enqueued=enqueued, payload=payload)
 
@@ -58,6 +60,20 @@ class SchedulingTest(unittest.TestCase):
         self.assertNotEqual(first["feature_key"], second["feature_key"])
         self.assertEqual(scheduler.predictor.observations, 1)
         self.assertEqual(Scheduler("asyncroll").predictor.observations, 0)
+
+    def test_repair_uses_same_problem_first_evaluation(self):
+        scheduler = Scheduler("asyncroll", starvation_threshold=4,
+                              aging_seconds=30, aging_weight=0)
+        first = job(0, test_count=2, problem_id="same", turn=0)
+        scheduler.observe(first.payload, 3.25)
+        repair = job(1, test_count=2, code_bytes=500, problem_id="same", turn=1)
+        other = job(2, test_count=2, code_bytes=10, problem_id="other", turn=1)
+        selected, evidence = scheduler.select([repair, other], 1.0, 3)
+        self.assertTrue(evidence["eligible_for_reorder"])
+        self.assertEqual(scheduler.select([repair], 1.0, 3)[1]["estimated_execute_seconds"], 3.25)
+        self.assertEqual(scheduler.select([repair], 1.0, 3)[1]["predictor_source"],
+                         "same_problem_first_evaluation")
+        self.assertIn(selected, (repair, other))
 
 
 if __name__ == "__main__":

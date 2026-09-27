@@ -50,15 +50,18 @@ class ResourceMetricsTest(unittest.TestCase):
         events = [
             event(0.1, "cpu_selected", job_id=0, queue_depth=2, reordered=True,
                   eligible_for_reorder=True, reason="low_model_supply_predicted_unlock",
-                  feature_key="a", estimate_known=True, estimated_execute_seconds=0.1),
+                  feature_key="a", estimate_known=True, estimated_execute_seconds=0.1,
+                  predictor_source="same_problem_first_evaluation"),
             event(0.2, "cpu_finished", job_id=0, execute_seconds=0.2),
             event(0.3, "cpu_selected", job_id=1, queue_depth=2, reordered=False,
                   eligible_for_reorder=True, reason="low_model_supply_predicted_unlock",
-                  feature_key="b", estimate_known=True, estimated_execute_seconds=1.0),
+                  feature_key="b", estimate_known=True, estimated_execute_seconds=1.0,
+                  predictor_source="same_problem_first_evaluation"),
             event(0.4, "cpu_finished", job_id=1, execute_seconds=1.2),
             event(0.5, "cpu_selected", job_id=2, queue_depth=1, reordered=False,
                   eligible_for_reorder=False, reason="fifo", feature_key="c",
-                  estimate_known=True, estimated_execute_seconds=2.0),
+                  estimate_known=True, estimated_execute_seconds=2.0,
+                  predictor_source="same_problem_first_evaluation"),
             event(0.6, "cpu_finished", job_id=2, execute_seconds=2.1),
         ]
         result = resource_metrics(events, 1.0, 3)
@@ -67,6 +70,8 @@ class ResourceMetricsTest(unittest.TestCase):
         self.assertEqual(result["scheduler_activation_rate"], 0.5)
         self.assertEqual(result["scheduler_distinct_feature_keys"], 3)
         self.assertGreater(result["prediction_log_pearson"], 0.9)
+        self.assertGreater(result["repair_prediction_log_pearson"], 0.9)
+        self.assertEqual(result["repair_prediction_pairs"], 3)
 
 
 if __name__ == "__main__":

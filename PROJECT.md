@@ -18,6 +18,12 @@ soft aging and an activation gate. V3 stopped at that gate: only 2 decisions
 were eligible and 1 reordered, so the formal comparison did not run. No positive
 gain is claimed. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
 
+V6 keeps the 8/4/2 operating point and changes only the mechanism exposed by
+v5: it triggers below the four-request serving capacity and uses each problem's
+first evaluation as the repair-time prior. Its simplified activation gate
+requires 20 eligible decisions, 10 reorders and positive repair prediction
+correlation. V6 is code-ready and unrun.
+
 The canonical next command uses `scripts/run_lcb_bounded_single_gpu.py` with
 `experiments/livecodebench_bounded_8x4.json`. It re-qualifies the stack, checks
 that the scheduler actually reorders work, then runs the matched comparison.

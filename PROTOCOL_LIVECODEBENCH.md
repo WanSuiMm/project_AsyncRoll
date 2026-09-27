@@ -1,5 +1,26 @@
 # LiveCodeBench one-repair protocol
 
+## v6 proactive supply trigger (not yet run)
+
+V5 showed that the per-job predictor had feature diversity and positive
+correlation, but `model_outstanding < 1` produced only two eligible decisions.
+V6 makes one mechanism change: the trigger is bound to serving capacity, so
+reordering is eligible whenever `model_outstanding < 4`, equal to the frozen
+client inflight limit. This attempts to replenish the model-ready queue before
+it empties.
+
+For repair evaluations, the predictor uses the same problem's observed first
+evaluation wall time. Initial evaluations continue to use the online ridge
+fallback. This is historical online information available before the repair
+executes. The 8/4/2 concurrency, vLLM settings, 219 tasks, soft aging and
+30-second hard deadline remain unchanged. There is no sweep.
+
+The activation gate is now exactly: at least 20 eligible decisions, at least 10
+reorders, and positive log-duration correlation for same-problem repair
+predictions. Passing it launches the unchanged six-arm comparison. The frozen
+configuration and runner are `experiments/livecodebench_bounded_8x4_v6.json`
+and `scripts/run_lcb_bounded_v6_single_gpu.py`.
+
 ## v3 fixed bounded-concurrency optimization (not yet run)
 
 V2 showed that 32 active trajectories hid nearly all CPU evaluator latency and

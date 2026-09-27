@@ -91,6 +91,7 @@ class Scheduler:
     aging_seconds: float = 30.0
     aging_weight: float = 0.02
     predictor: OnlineRidge = field(default_factory=OnlineRidge)
+    first_evaluation_seconds: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if (self.starvation_threshold < 1 or not math.isfinite(self.aging_seconds)
@@ -101,16 +102,22 @@ class Scheduler:
     def observe(self, payload: dict, seconds: float) -> None:
         if payload["kind"] == "tool" and math.isfinite(seconds) and seconds >= 0:
             self.predictor.observe(_payload_features(payload), seconds)
+            problem_id = payload.get("problem_id")
+            if problem_id is not None and int(payload.get("turn", 0)) == 0:
+                self.first_evaluation_seconds[str(problem_id)] = seconds
 
     def select(self, jobs: list[Any], now: float, model_outstanding: int) -> tuple[Any, dict]:
         """Choose a queued job using only information available before execution."""
         oldest = min(jobs, key=lambda job: job.job_id)
         selected, reason = oldest, "fifo"
 
-        def prediction(job: Any) -> float:
+        def prediction(job: Any) -> tuple[float, str]:
             if job.payload["kind"] != "tool":
-                return 0.0
-            return self.predictor.predict(_payload_features(job.payload))
+                return 0.0, "grade"
+            problem_id = str(job.payload.get("problem_id", ""))
+            if int(job.payload.get("turn", 0)) > 0 and problem_id in self.first_evaluation_seconds:
+                return self.first_evaluation_seconds[problem_id], "same_problem_first_evaluation"
+            return self.predictor.predict(_payload_features(job.payload)), "ridge_fallback"
 
         eligible = (self.policy == "asyncroll" and len(jobs) > 1
                     and model_outstanding < self.starvation_threshold)
@@ -125,17 +132,19 @@ class Scheduler:
             elif eligible:
                 selected = min(jobs, key=lambda job: (
                     job.payload["kind"] != "tool",
-                    prediction(job) - self.aging_weight * max(0.0, now - job.enqueued),
+                    prediction(job)[0] - self.aging_weight * max(0.0, now - job.enqueued),
                     job.job_id))
                 reason = "low_model_supply_predicted_unlock"
 
         features = _payload_features(selected.payload) if selected.payload["kind"] == "tool" else None
+        predicted_seconds, predictor_source = prediction(selected)
         return selected, {
             "reason": reason, "queue_depth": len(jobs),
             "model_outstanding": model_outstanding,
-            "estimated_execute_seconds": prediction(selected),
+            "estimated_execute_seconds": predicted_seconds,
             "estimate_known": self.predictor.observations > 0,
             "predictor_observations": self.predictor.observations,
+            "predictor_source": predictor_source,
             "feature_key": _feature_key(features) if features else "grade",
             "eligible_for_reorder": eligible,
             "oldest_job_id": oldest.job_id, "reordered": selected is not oldest,

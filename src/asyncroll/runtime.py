@@ -123,7 +123,8 @@ class CPUQueue:
             return {"graded": False, "correct": None}
         future = asyncio.get_running_loop().create_future()
         job = CPUJob(problem_id, self.sequence, turn,
-                     dict(kind=kind, turn=turn, tool=tool, arguments=arguments,
+                     dict(kind=kind, problem_id=problem_id, turn=turn,
+                          tool=tool, arguments=arguments,
                           answer=answer, reference=reference), future, time.perf_counter())
         self.sequence += 1
         self.recorder.emit(problem_id, "cpu_enqueued", **self._fields(job))
@@ -454,7 +455,7 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
         summary["scheduler"] = {"starvation_threshold": starvation_threshold,
                                 "aging_seconds": aging_seconds,
                                 "aging_weight": aging_weight,
-                                "estimator": "Online ridge on pre-execution per-job features; reset each run"}
+                                "estimator": "Same-problem first evaluation for repairs; online ridge fallback for initial jobs; reset each run"}
         summary["nvtx_enabled"] = nvtx_enabled
         samples = [e for e in recorder.events if e["event"] == "resource_sample"]
         summary.update(policy=policy, requested_policy=requested_policy,

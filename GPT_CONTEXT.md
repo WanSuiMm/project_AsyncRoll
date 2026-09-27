@@ -10,6 +10,10 @@ and adds per-job prediction plus an activation gate. V3 stopped at activation
 with 2 eligible decisions and 1 reorder; there is no positive speedup claim or
 RL loop. See [RESULTS.md](RESULTS.md).
 
+V6 is the next unrun configuration. It binds the model-supply threshold to the
+four-request client capacity and uses same-problem first-evaluation latency for
+repair prediction. All concurrency and serving settings remain fixed.
+
 | Formal field | Status |
 | --- | --- |
 | Qualification | v2 qualified |

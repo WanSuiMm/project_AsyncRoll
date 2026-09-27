@@ -77,6 +77,13 @@ def resource_metrics(events: list[dict], elapsed: float, completed: int,
                          math.log(max(0.001, actual_by_job[e["job_id"]])))
                         for e in decisions if _finite(e.get("estimated_execute_seconds"))
                         and _finite(actual_by_job.get(e["job_id"]))]
+    repair_prediction_pairs = [
+        (math.log(max(0.001, e["estimated_execute_seconds"])),
+         math.log(max(0.001, actual_by_job[e["job_id"]])))
+        for e in decisions
+        if e.get("predictor_source") == "same_problem_first_evaluation"
+        and _finite(e.get("estimated_execute_seconds"))
+        and _finite(actual_by_job.get(e["job_id"]))]
     eligible = [e for e in decisions if e.get("eligible_for_reorder")]
     reason_counts = Counter(e.get("reason", "unknown") for e in decisions)
     return {
@@ -100,6 +107,8 @@ def resource_metrics(events: list[dict], elapsed: float, completed: int,
         "known_cost_decisions": sum(e["estimate_known"] for e in decisions),
         "prediction_log_pearson": _pearson(prediction_pairs),
         "prediction_pairs": len(prediction_pairs),
+        "repair_prediction_log_pearson": _pearson(repair_prediction_pairs),
+        "repair_prediction_pairs": len(repair_prediction_pairs),
         "interpretation": "Sampled empty vLLM queues overlapping pending CPU continuations and no "
                           "client model work. Endpoints do not prove continuous server idleness. "
                           "Low NVML activity yields a candidate, not recoverable GPU time. "
