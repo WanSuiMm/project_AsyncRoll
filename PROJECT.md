@@ -26,10 +26,16 @@ correlation. V6 completed all formal arms: paired throughput changes were
 +0.92%, +1.03% and +2.37%, with +1.44% mean and a descriptive interval spanning
 zero. The mechanism activated; the result does not support a 20% gain.
 
-The canonical next command uses `scripts/run_lcb_bounded_single_gpu.py` with
-`experiments/livecodebench_bounded_8x4.json`. It re-qualifies the stack, checks
-that the scheduler actually reorders work, then runs the matched comparison.
-See [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
+An optional model-only ablation harness is implemented but has not been run.
+It separately compares vLLM online serving with Transformers fixed batches and
+compares vLLM `FLASH_ATTN` with one supported reference attention backend. It
+does not include AsyncRoll scheduling and cannot explain or strengthen the
+completed +1.44% scheduler result. See [SERVING_ABLATION.md](SERVING_ABLATION.md).
+
+The completed scheduler comparison used
+`scripts/run_lcb_bounded_v6_single_gpu.py` with
+`experiments/livecodebench_bounded_8x4_v6.json`. See
+[PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
 
 ## One experiment on a dedicated rented RTX 5090
 

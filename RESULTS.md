@@ -1,5 +1,12 @@
 # Results
 
+## Model-serving side ablation
+
+The vLLM-versus-Transformers and vLLM attention-backend harness is implemented
+under `SERVING_ABLATION.md`, but it has not been run on a GPU. There is currently
+no measured vLLM or FlashAttention gain to report. Any future result remains a
+model-only side measurement and does not alter the AsyncRoll scheduler estimate.
+
 ## Bounded-concurrency v6 formal comparison
 
 V6 passed its activation gate with 38 eligible decisions, 19 reorders and

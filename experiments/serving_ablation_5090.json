@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "protocol_id": "asyncroll-serving-ablation-v1",
+  "model": {
+    "repository": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+    "served_name": "asyncroll-coder"
+  },
+  "workload": {
+    "repository": "livecodebench/code_generation",
+    "revision": "bb83f1c3c643a772b7a2a8f07bd62c2aab76be8f",
+    "selected_workload_sha256": "2951af5fa6da0286ed62462e85d4ca41abf45f6dc3b2e22123d46ce2d7618d6c"
+  },
+  "benchmark": {
+    "warmup_prompts": 8,
+    "measured_prompts": 64,
+    "concurrency": 4,
+    "max_tokens": 256,
+    "request_timeout_seconds": 300,
+    "seed": 20260928,
+    "repeats": 3,
+    "orders": [
+      ["transformers_flash_attn_2", "vllm_flash_attn", "vllm_reference_attention"],
+      ["vllm_reference_attention", "vllm_flash_attn", "transformers_flash_attn_2"],
+      ["vllm_flash_attn", "transformers_flash_attn_2", "vllm_reference_attention"]
+    ]
+  },
+  "transformers": {
+    "batch_size": 4,
+    "attention_implementation": "flash_attention_2"
+  },
+  "vllm": {
+    "port": 8000,
+    "dtype": "bfloat16",
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 8192,
+    "max_num_seqs": 4,
+    "max_num_batched_tokens": 8192,
+    "prefix_caching": false,
+    "chunked_prefill": true,
+    "startup_timeout_seconds": 1800
+  },
+  "attention": {
+    "primary_backend": "FLASH_ATTN",
+    "reference_backend": "TRITON_ATTN"
+  }
+}

@@ -31,6 +31,7 @@ changes of +0.92%, +1.03% and +2.37% (+1.44% mean; descriptive 95% interval
 5. [MEASUREMENT.md](MEASUREMENT.md): metric definitions and confounders.
 6. [GPT_CONTEXT.md](GPT_CONTEXT.md): implementation map and evidence routing.
 7. [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md): new code-agent experiment.
+8. [SERVING_ABLATION.md](SERVING_ABLATION.md): optional vLLM and attention-backend measurement.
 
 ## Local check
 
