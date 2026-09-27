@@ -4,7 +4,7 @@ import unittest
 
 import httpx
 
-from asyncroll.model import GenerationError, VLLMBackend, initial_messages
+from asyncroll.model import GenerationError, VLLMBackend, action_schema, initial_messages
 from asyncroll.workload import Problem
 
 
@@ -34,12 +34,29 @@ class ModelTest(unittest.TestCase):
                 self.assertEqual(peak, 3)
                 self.assertIs(backend.client, client)
                 self.assertEqual(requests[0]["response_format"]["type"], "json_schema")
+                requested = requests[0]["response_format"]["json_schema"]
+                self.assertTrue(requested["strict"])
+                self.assertEqual(requested["schema"]["properties"]["type"],
+                                 {"const": "tool"})
                 self.assertEqual(results[0].usage["completion_tokens"], 8)
                 self.assertTrue(all(r.request_seconds >= 0.02 for r in results))
             finally:
                 await backend.aclose()
             self.assertTrue(client.is_closed)
         asyncio.run(exercise())
+
+    def test_typed_tool_first_then_bounded_final_schema(self):
+        problem = Problem("p", "factor", [{
+            "name": "factor", "inputs": {"values": "List[int]", "powers": "dict[int, int]"}
+        }])
+        first = action_schema(problem, 0)
+        arguments = first["properties"]["arguments"]
+        self.assertEqual(arguments["properties"]["values"]["items"]["type"], "integer")
+        self.assertEqual(
+            arguments["properties"]["powers"]["additionalProperties"]["type"], "integer")
+        final = action_schema(problem, 1)
+        self.assertEqual(final["properties"]["type"], {"const": "final"})
+        self.assertEqual(final["properties"]["answer"]["maxLength"], 256)
 
     def test_invalid_response_and_total_timeout_are_distinct(self):
         async def exercise():

@@ -142,6 +142,10 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ExperimentError("The fixed experiment uses tensor_parallel_size=1")
     if server.get("prefix_caching") is not True or server.get("chunked_prefill") is not True:
         raise ExperimentError("Prefix caching and chunked prefill must both be enabled")
+    if (server.get("structured_outputs_backend") != "xgrammar"
+            or server.get("disable_any_whitespace") is not True):
+        raise ExperimentError(
+            "Structured outputs require xgrammar with arbitrary whitespace disabled")
     if (not math.isfinite(float(server.get("gpu_memory_utilization", math.nan)))
             or not 0 < float(server["gpu_memory_utilization"]) <= 1):
         raise ExperimentError("server.gpu_memory_utilization must be in (0, 1]")
@@ -546,6 +550,10 @@ def server_command(config: dict[str, Any], model_path: Path, port: int,
         command.append("--enable-prefix-caching")
     if server["chunked_prefill"]:
         command.append("--enable-chunked-prefill")
+    command.extend(("--structured-outputs-config", json.dumps({
+        "backend": server["structured_outputs_backend"],
+        "disable_any_whitespace": server["disable_any_whitespace"],
+    }, separators=(",", ":"))))
     return command
 
 

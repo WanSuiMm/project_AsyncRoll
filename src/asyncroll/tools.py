@@ -14,6 +14,31 @@ from typing import Any
 _TOOL_CACHE: dict[tuple[str, str], Any] = {}
 
 
+def _coerce_argument(value: Any, type_name: str) -> Any:
+    if type_name == "int":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError("expected int")
+        return value
+    if type_name == "float":
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError("expected float")
+        return float(value)
+    if type_name == "dict[int, int]":
+        if not isinstance(value, dict):
+            raise TypeError("expected dict[int, int]")
+        try:
+            return {int(key): _coerce_argument(item, "int")
+                    for key, item in value.items()}
+        except (TypeError, ValueError) as exc:
+            raise TypeError("expected decimal integer keys and integer values") from exc
+    if type_name in {"List[int]", "List[float]"}:
+        if not isinstance(value, list):
+            raise TypeError(f"expected {type_name}")
+        item_type = "int" if type_name == "List[int]" else "float"
+        return [_coerce_argument(item, item_type) for item in value]
+    raise TypeError(f"unsupported tool input type {type_name}")
+
+
 def load_tool(tool: dict[str, Any]) -> Any:
     """Cache trusted callables per worker; module state persists within a run."""
     name = tool["name"]
@@ -54,7 +79,12 @@ def call_tool(tool: dict[str, Any], arguments: dict[str, Any]) -> Any:
         return {"slept_ms": arguments["milliseconds"]}
     if name == "add" and "implementation" not in tool:
         return {"result": arguments["a"] + arguments["b"]}
-    return load_tool(tool)(**arguments)
+    inputs = tool.get("inputs") or {}
+    if set(arguments) != set(inputs):
+        raise TypeError("tool arguments do not match the declared inputs")
+    coerced = {name: _coerce_argument(arguments[name], type_name)
+               for name, type_name in inputs.items()}
+    return load_tool(tool)(**coerced)
 
 
 def execute_tool(tool: dict[str, Any], arguments: dict[str, Any]) -> str:

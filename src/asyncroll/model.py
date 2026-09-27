@@ -48,17 +48,45 @@ def parse_action(content: str) -> dict[str, Any]:
     return action
 
 
-def action_schema(problem: Problem) -> dict[str, Any]:
-    variants = [{"type": "object", "properties": {
-        "type": {"const": "final"}, "answer": {"type": "string"}},
-        "required": ["type", "answer"], "additionalProperties": False}]
-    if problem.tools:
-        variants.append({"type": "object", "properties": {
-            "type": {"const": "tool"},
-            "name": {"enum": sorted({tool["name"] for tool in problem.tools})},
-            "arguments": {"type": "object"}},
-            "required": ["type", "name", "arguments"], "additionalProperties": False})
-    return {"anyOf": variants}
+def _input_schema(type_name: str) -> dict[str, Any]:
+    schemas = {
+        "int": {"type": "integer"},
+        "float": {"type": "number"},
+        "dict[int, int]": {
+            "type": "object", "additionalProperties": {"type": "integer"}},
+        "List[int]": {"type": "array", "items": {"type": "integer"}},
+        "List[float]": {"type": "array", "items": {"type": "number"}},
+    }
+    try:
+        return schemas[type_name]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported ToolMATH input type: {type_name}") from exc
+
+
+def _tool_schema(tool: dict[str, Any]) -> dict[str, Any]:
+    inputs = tool.get("inputs") or {}
+    arguments = {
+        "type": "object",
+        "properties": {name: _input_schema(type_name)
+                       for name, type_name in inputs.items()},
+        "required": list(inputs),
+        "additionalProperties": False,
+    }
+    return {"type": "object", "properties": {
+        "type": {"const": "tool"}, "name": {"const": tool["name"]},
+        "arguments": arguments},
+        "required": ["type", "name", "arguments"], "additionalProperties": False}
+
+
+def action_schema(problem: Problem, turn: int = 0) -> dict[str, Any]:
+    """Require one typed tool call first, then one bounded final response."""
+    if problem.tools and turn == 0:
+        variants = [_tool_schema(tool) for tool in problem.tools]
+        return variants[0] if len(variants) == 1 else {"anyOf": variants}
+    return {"type": "object", "properties": {
+        "type": {"const": "final"},
+        "answer": {"type": "string", "maxLength": 256}},
+        "required": ["type", "answer"], "additionalProperties": False}
 
 
 class ScriptedBackend:
@@ -102,7 +130,8 @@ class VLLMBackend:
                    "temperature": 0, "max_tokens": self.max_tokens, "seed": self.seed}
         if self.structured_output:
             payload["response_format"] = {"type": "json_schema", "json_schema": {
-                "name": "agent_action", "schema": action_schema(problem)}}
+                "name": "agent_action", "strict": True,
+                "schema": action_schema(problem, turn)}}
         started = time.perf_counter()
         try:
             response = await asyncio.wait_for(
@@ -135,7 +164,11 @@ def initial_messages(problem: Problem) -> list[dict[str, str]]:
               if key in tool} for tool in problem.tools]
     return [
         {"role": "system", "content": (
-            "Solve the math problem. You may call only the listed tools. "
+            "Solve the math problem using the listed tool protocol. "
+            "On the first response, call exactly one listed tool with concrete "
+            "JSON values that satisfy its input types. After the tool result, "
+            "return the final answer. For dict[int, int], encode integer keys "
+            "as decimal JSON strings, for example {\"2\":3}. "
             'Reply with exactly one JSON object, either '
             '{"type":"tool","name":"...","arguments":{...}} '
             'or {"type":"final","answer":"..."}. '

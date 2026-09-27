@@ -41,7 +41,9 @@
     "max_num_seqs": 16,
     "max_num_batched_tokens": 8192,
     "prefix_caching": true,
-    "chunked_prefill": true
+    "chunked_prefill": true,
+    "structured_outputs_backend": "xgrammar",
+    "disable_any_whitespace": true
   },
   "runtime": {
     "cpu_workers": 2,
