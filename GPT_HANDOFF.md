@@ -1,63 +1,77 @@
 # Incremental review handoff
 
-- Review base: `00b6d31c496413efb4dc73bb4422cfc1325e857c`
-- Code/evidence head: `e16d3313a30305969ded386ad4dc6e6b1635832a`
+- Review base: `5cb6a72d33711085e93e152ddfe5c81abc89d31a`
+- Code/evidence head: `797b6fe94817aa65c607c48def40f20b356346bb`
 - This file is a later documentation-only commit; the evidence head stays fixed.
-- Validation date: 2026-09-27.
+- Validation date: 2026-09-27. Release: 0.3.0.
 
 ## What changed
 
-1. HTTP requests use one persistent async client with JSON-schema output,
-   separate request/parsing timing and a total deadline.
-2. Persistent CPU workers preload cached callables before measurement. Tool
-   deadlines terminate the process; later jobs trigger a preloaded replacement.
-3. Trajectory admission, model inflight calls and CPU workers have independent
-   controls. Warmup and teardown are excluded from throughput timing.
-4. Unlabelled tasks create no grading work. `tool_first` is the canonical name
-   for the existing tool-over-grade priority; `gpu_first` remains an alias.
-5. vLLM metric parsing, optional local NVML, phase summaries, job identities,
-   durable event logs and standalone/Chrome resource timelines are implemented.
-6. Seeded ToolMATH conversion preserves metadata and uses portable tool paths.
+1. The project now has one fixed-resource experiment for a dedicated rented
+   RTX 5090: FIFO versus `asyncroll`. The configuration has 8 qualification
+   tasks, a 32-task opportunity screen, and three alternating-order full-run
+   pairs. A failed/negative screen stops the comparison.
+2. `scheduling.Scheduler` implements a non-preemptive policy using client model
+   supply, per-tool past observed duration and aging. It has no future-work or
+   answer oracle. Unknown tools initially preserve FIFO; ineffective reordering
+   is an admissible negative result.
+3. CPU cost uses whole client/worker process CPU deltas; worker death makes the
+   total unknown. Sampled starvation intersects client state with empty server
+   queues, with explicit coverage and additional NVML idle-candidate criteria.
+4. Optional async-safe NVTX ranges cover model waiting/HTTP, CPU queueing, actual
+   worker execution and the measured window. Nsight wraps server and client
+   descendants. Diagnostic profile timings never enter the formal comparison.
+5. The launcher checks pinned model content digests, workload/tool/code/dependency
+   fingerprints, GPU ownership, selected attention backend and graph-capture
+   evidence. It restarts the server for each arm and preserves owned PID/terminal
+   receipts, partial comparisons and bounded cleanup.
+6. The offline report exports raw paired points, quality/failure counts and one
+   three-panel PDF/PNG. No example speedup numbers have been added.
 
-The primary rate is now `completed_per_wall_hour`. Per-trajectory latency
-components and accumulated phase totals have different meanings; read their
-definitions before making any attribution.
+## Claim boundaries retained
 
-## What remains unchanged
+There is no live rented-GPU result, Qwen/ToolMATH protocol qualification,
+demonstrated speedup, mathematical-equivalence accuracy, causal recoverable
+bubble estimate, or RL training. vLLM/NVML/NVTX/Nsight integration still needs the
+actual rental environment. Startup audit rejects unfamiliar/unproven evidence;
+requested flags alone are insufficient. Generic grammar backend log entries do
+not count as attention evidence.
 
-There is no empirical scheduling advantage, live Qwen/ToolMATH qualification,
-math-equivalence grader, RL training, or recoverable GPU-bubble result. No
-CUDA/vLLM internals, CPU affinity or NUMA tuning was added. Unlabelled ToolMATH
-does not differentiate FIFO and tool-first's CPU priority order.
+Completed trajectories are not necessarily correct answers. CPU cost excludes
+vLLM serving CPU. Dedicated GPU-hours cover the measured allocation window,
+excluding model loading and warmup. Sampled empty queues do not prove continuous
+CUDA idleness. A short/cheap/unique ToolMATH tool mix may leave no useful schedule
+intervention. Three pairs are a pilot comparison with a 2:1 first-arm imbalance.
 
 ## New verification evidence
 
 | Check | Observed result | Boundary |
 | --- | --- | --- |
-| `python -m unittest discover -s tests -v` | 24 tests passed | Local behavior; HTTP/metrics mocked |
-| CLI scripted smoke, 3 active / 2 model slots / 2 CPU workers | 3/3 completed, 2 tool calls, 3/3 exact labels | Synthetic functional check, no GPU |
-| Run outputs | Complete receipt, summary, events, trace, HTML | Local artifacts excluded from Git |
-| Browser rendering | Separate trajectory and CPU lanes render; absent telemetry is visible | No real resource samples |
-| Package build | `asyncroll-0.2.0` wheel built | Client package only |
-| Repository delivery checks | Markdown targets valid; staged whitespace/size/identifier scans passed | No model weights or private receipts |
+| `python -m unittest discover -s tests -q` | 49 tests passed | Local behavior; GPU/HTTP/NVTX/vendor startup evidence mocked |
+| Scripted AsyncRoll CLI smoke | 3/3 completed, two tool calls, zero failures | No GPU; throughput is not a scientific result |
+| Offline report export | PDF/PNG generated from temporary synthetic fixtures | Export behavior only; fixtures are not experimental data |
+| Packaging | 0.3.0 wheel built; new modules and model manifest included | Rental dependencies/driver remain unqualified |
+| Documentation | Seven Markdown files checked; no missing local link targets | Use editable install from repository root as documented |
+| Delivery | Staged size/whitespace/secret/machine-identifier checks passed | Caches, models, local runs and private receipts excluded |
 
-Tests exercised actual worker process death and replacement after timeout.
-They also cover cached imports, concurrency limits, absent no-op grading,
-unknown tool validity, HTTP error versus timeout, telemetry gaps/deadlines,
-counter resets and HTML escaping. Live vLLM structured-output compatibility,
-Linux worker behavior and real NVML collection remain unverified.
+Targeted tests cover pressure/aging, estimator reset, killed-worker accounting,
+missing telemetry and sample gaps, overlapping NVTX correlation, fresh arm plans,
+UUID/NVML mapping, actual backend versus grammar logs, hash mismatches, failed-arm
+PID persistence, cleanup, and retaining the active Python environment path.
 
-## Minimal reading order and questions
+## Minimal reading order and review questions
 
-1. [MEASUREMENT.md](MEASUREMENT.md): can any field still be mistaken for GPU
-   execution or additive wall-clock share?
-2. [runtime.py](src/asyncroll/runtime.py), [workers.py](src/asyncroll/workers.py):
-   do admission, warmup, replacement and failure denominators preserve fairness?
-3. [model.py](src/asyncroll/model.py), [telemetry.py](src/asyncroll/telemetry.py):
-   which live protocol/version assumptions must Gate 0 qualify?
-4. [PROJECT.md](PROJECT.md): is there actual CPU-related idle opportunity to
-   justify any policy beyond the current coarse baseline?
+1. [PROTOCOL.md](PROTOCOL.md), [single_5090.json](experiments/single_5090.json):
+   are the frozen screen, quality constraints and negative-result interpretation
+   sufficient for a useful pilot?
+2. [scheduling.py](src/asyncroll/scheduling.py), [metrics.py](src/asyncroll/metrics.py):
+   can this past-cost heuristic distinguish real tools, and are sampled
+   associations/cost scope labelled honestly?
+3. [experiment.py](src/asyncroll/experiment.py), [test_experiment.py](tests/test_experiment.py):
+   which rental-specific vLLM/log/driver assumptions still need qualification?
+4. [SINGLE_GPU.md](docs/SINGLE_GPU.md), [MEASUREMENT.md](MEASUREMENT.md):
+   can an independent reader execute the same comparison and explain its trace?
 
-Reproduce local verification using [README.md](README.md). Review summaries and
-tests first; do not request raw per-event logs before the measurement semantics
-are clear. Do not compare scripted throughput to a GPU serving benchmark.
+Read concise summaries before per-event logs. Previously reviewed HTTP pooling,
+worker import caching, independent concurrency and baseline timeline code remain
+the foundation; do not infer new empirical evidence from those unchanged pieces.
