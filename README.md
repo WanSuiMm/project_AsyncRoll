@@ -9,6 +9,12 @@ FIFO opportunity screen found no CPU scheduling opportunity. The experiment
 stopped before the FIFO versus AsyncRoll comparison, so there is no speedup or
 GPU-bubble recovery claim. See [RESULTS.md](RESULTS.md).
 
+A second, separately versioned experiment now targets an online one-repair code
+trajectory using Qwen2.5-Coder-7B-Instruct and the full LiveCodeBench test data.
+Its frozen stages and security boundary are in
+[PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md). It is pending live
+qualification and does not change the ToolMATH verdict.
+
 ## Start here
 
 1. [RESULTS.md](RESULTS.md): canonical result, gates and claim boundary.
@@ -17,6 +23,7 @@ GPU-bubble recovery claim. See [RESULTS.md](RESULTS.md).
 4. [docs/SINGLE_GPU.md](docs/SINGLE_GPU.md): rental setup, staged execution and Nsight.
 5. [MEASUREMENT.md](MEASUREMENT.md): metric definitions and confounders.
 6. [GPT_CONTEXT.md](GPT_CONTEXT.md): implementation map and evidence routing.
+7. [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md): new code-agent experiment.
 
 ## Local check
 
@@ -96,6 +103,20 @@ its replacement is preloaded and recovery overhead remains in the measured
 run. This is not a security sandbox or a descendant-process cleanup mechanism.
 
 See [MEASUREMENT.md](MEASUREMENT.md) before using any throughput number.
+
+## LiveCodeBench one-repair workload
+
+Convert a pinned full-data export to a deterministic stdin-only subset:
+
+```powershell
+python -m asyncroll.cli convert-livecodebench --source data/livecodebench/test.jsonl --output data/livecodebench/selected-512.jsonl --limit 512 --seed 20260927 --stdin-only
+```
+
+Each trajectory submits one complete Python program to the CPU evaluator and,
+after bounded failure feedback, may submit one repair. Test execution uses a
+fresh temporary directory, resource limits and a low-privilege account when
+launched as root. It remains a local benchmark harness rather than a hardened
+security sandbox and belongs only on a disposable credential-free host.
 
 ## One result figure
 

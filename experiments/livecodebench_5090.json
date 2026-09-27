@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "protocol_id": "asyncroll-single-5090-qwen-coder-lcb-v1",
+  "model": {
+    "repository": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+    "served_name": "asyncroll-coder"
+  },
+  "workload": {
+    "repository": "livecodebench/code_generation",
+    "revision": "bb83f1c3c643a772b7a2a8f07bd62c2aab76be8f",
+    "release": "release_v6",
+    "selection_seed": 20260927,
+    "stdin_only": true,
+    "qualification_tasks": 8,
+    "opportunity_tasks": 128,
+    "comparison_tasks": 512,
+    "repair_attempts": 1
+  },
+  "comparison": {
+    "replicates": 3,
+    "orders": [["fifo", "asyncroll"], ["asyncroll", "fifo"], ["fifo", "asyncroll"]]
+  },
+  "server": {
+    "dtype": "bfloat16",
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 8192,
+    "max_num_seqs": 32,
+    "max_num_batched_tokens": 16384,
+    "prefix_caching": true,
+    "chunked_prefill": true,
+    "structured_outputs_backend": "xgrammar",
+    "disable_any_whitespace": true
+  },
+  "runtime": {
+    "cpu_workers": 2,
+    "max_active_trajectories": 32,
+    "max_inflight_model_requests": 8,
+    "max_turns": 2,
+    "max_tokens": 2048,
+    "warmup_requests": 8,
+    "tool_timeout_seconds": 20,
+    "worker_startup_timeout_seconds": 120,
+    "request_timeout_seconds": 180,
+    "telemetry_interval_seconds": 0.2,
+    "starvation_threshold": 1,
+    "aging_seconds": 1
+  },
+  "opportunity_gate": {
+    "minimum_cpu_related_idle_candidate_seconds": 0.001,
+    "minimum_joint_observation_coverage_fraction": 0.8,
+    "minimum_client_cpu_blocked_seconds": 0.001,
+    "minimum_cpu_max_queue_depth": 2,
+    "minimum_tool_queue_p95_seconds": 0.005
+  }
+}

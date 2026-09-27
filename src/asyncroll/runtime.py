@@ -194,6 +194,8 @@ async def _trajectory(problem: Problem, backend: ModelBackend,
     recorder.emit(problem.id, "trajectory_started", admission_seconds=started - recorder.start)
     messages = initial_messages(problem)
     tool_calls, tool_attempts = 0, 0
+    repair_protocol = problem.metadata.get("prompt_metadata", {}).get("protocol") == "one_repair"
+    max_generations = int(problem.metadata.get("prompt_metadata", {}).get("max_generations", 2))
     try:
         for turn in range(max_turns):
             request_id = f"{problem.id}:{turn}"
@@ -219,6 +221,30 @@ async def _trajectory(problem: Problem, backend: ModelBackend,
                               request_seconds=generated.request_seconds,
                               parsing_seconds=generated.parsing_seconds, usage=generated.usage)
             messages.append({"role": "assistant", "content": json.dumps(action)})
+            if action["type"] == "submit":
+                if not repair_protocol:
+                    raise ValueError("Submit action is only valid for a repair workload")
+                tool_attempts += 1
+                tool = next((item for item in problem.tools
+                             if item["name"] == "lcb_evaluate"), None)
+                if tool is None:
+                    raise ValueError("Repair workload has no lcb_evaluate tool")
+                observation = await cpu.submit(problem.id, "tool", turn, tool=tool,
+                                               arguments={"code": action["code"]})
+                tool_calls += 1
+                evaluated = json.loads(observation)
+                passed = bool(evaluated.get("passed"))
+                if passed or tool_attempts >= max_generations:
+                    result = {"id": problem.id, "status": "completed",
+                              "graded": True, "correct": passed,
+                              "passed": passed, "repair_attempted": tool_attempts > 1,
+                              "tests_run": evaluated.get("tests_run"),
+                              "tests_total": evaluated.get("tests_total")}
+                    break
+                repair = problem.metadata["prompt_metadata"]["repair_instruction"]
+                messages.append({"role": "user", "content":
+                                 f"{repair}\nTest feedback: {evaluated.get('feedback', '')}"})
+                continue
             if action["type"] == "final":
                 answer = action["answer"]
                 verdict = {"graded": False, "correct": None}

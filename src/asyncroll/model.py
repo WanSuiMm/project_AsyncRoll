@@ -36,8 +36,8 @@ class ModelBackend(Protocol):
 def parse_action(content: str) -> dict[str, Any]:
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
     action = json.loads(cleaned)
-    if not isinstance(action, dict) or action.get("type") not in {"tool", "final"}:
-        raise ValueError("Model must return a JSON object with type tool or final")
+    if not isinstance(action, dict) or action.get("type") not in {"tool", "final", "submit"}:
+        raise ValueError("Model must return a JSON object with type tool, final, or submit")
     if action["type"] == "tool" and (
         not isinstance(action.get("name"), str)
         or not isinstance(action.get("arguments"), dict)
@@ -45,11 +45,14 @@ def parse_action(content: str) -> dict[str, Any]:
         raise ValueError("Tool action requires name and arguments object")
     if action["type"] == "final" and not isinstance(action.get("answer"), str):
         raise ValueError("Final action requires a string answer")
+    if action["type"] == "submit" and not isinstance(action.get("code"), str):
+        raise ValueError("Submit action requires Python source in a code string")
     return action
 
 
 def _input_schema(type_name: str) -> dict[str, Any]:
     schemas = {
+        "str": {"type": "string"},
         "int": {"type": "integer"},
         "float": {"type": "number"},
         "dict[int, int]": {
@@ -80,6 +83,11 @@ def _tool_schema(tool: dict[str, Any]) -> dict[str, Any]:
 
 def action_schema(problem: Problem, turn: int = 0) -> dict[str, Any]:
     """Require one typed tool call first, then one bounded final response."""
+    if problem.metadata.get("prompt_metadata", {}).get("protocol") == "one_repair":
+        return {"type": "object", "properties": {
+            "type": {"const": "submit"},
+            "code": {"type": "string", "minLength": 1, "maxLength": 20000}},
+            "required": ["type", "code"], "additionalProperties": False}
     if problem.tools and turn == 0:
         variants = [_tool_schema(tool) for tool in problem.tools]
         return variants[0] if len(variants) == 1 else {"anyOf": variants}
@@ -160,6 +168,14 @@ class VLLMBackend:
 
 
 def initial_messages(problem: Problem) -> list[dict[str, str]]:
+    if problem.metadata.get("prompt_metadata", {}).get("protocol") == "one_repair":
+        return [
+            {"role": "system", "content": (
+                "Write a complete Python 3 solution. Reply with exactly one JSON object "
+                "of the form {\"type\":\"submit\",\"code\":\"...\"}. Put the complete "
+                "program in code, with JSON escaping, and include no other text.")},
+            {"role": "user", "content": problem.prompt},
+        ]
     tools = [{key: tool[key] for key in ("name", "description", "inputs")
               if key in tool} for tool in problem.tools]
     return [

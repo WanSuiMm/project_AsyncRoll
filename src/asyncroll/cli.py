@@ -18,6 +18,7 @@ from .runtime import run
 from .telemetry import Telemetry
 from .timeline import write_timeline
 from .workload import convert_toolmath, load_jsonl
+from .code_workload import convert_livecodebench
 
 
 def main() -> None:
@@ -29,6 +30,12 @@ def main() -> None:
     convert.add_argument("--output", type=Path, required=True)
     convert.add_argument("--limit", type=int)
     convert.add_argument("--seed", type=int, default=0)
+    code_convert = commands.add_parser("convert-livecodebench")
+    code_convert.add_argument("--source", type=Path, required=True)
+    code_convert.add_argument("--output", type=Path, required=True)
+    code_convert.add_argument("--limit", type=int)
+    code_convert.add_argument("--seed", type=int, default=0)
+    code_convert.add_argument("--stdin-only", action="store_true")
 
     bench = commands.add_parser("run")
     bench.add_argument("--workload", type=Path, required=True)
@@ -62,6 +69,11 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "convert-toolmath":
         count = convert_toolmath(args.source, args.functions_dir, args.output, args.limit, args.seed)
+        print(f"Wrote {count} problems to {args.output}")
+        return
+    if args.command == "convert-livecodebench":
+        count = convert_livecodebench(args.source, args.output, args.limit, args.seed,
+                                      args.stdin_only)
         print(f"Wrote {count} problems to {args.output}")
         return
     if args.backend == "vllm" and not args.model:

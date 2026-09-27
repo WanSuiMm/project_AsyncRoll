@@ -23,6 +23,10 @@ def _coerce_argument(value: Any, type_name: str) -> Any:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError("expected float")
         return float(value)
+    if type_name == "str":
+        if not isinstance(value, str):
+            raise TypeError("expected str")
+        return value
     if type_name == "dict[int, int]":
         if not isinstance(value, dict):
             raise TypeError("expected dict[int, int]")
@@ -79,6 +83,17 @@ def call_tool(tool: dict[str, Any], arguments: dict[str, Any]) -> Any:
         return {"slept_ms": arguments["milliseconds"]}
     if name == "add" and "implementation" not in tool:
         return {"result": arguments["a"] + arguments["b"]}
+    if name == "lcb_evaluate" and "implementation" not in tool:
+        from .code_executor import evaluate_python
+
+        if set(arguments) != {"code"}:
+            raise TypeError("lcb_evaluate requires exactly one code argument")
+        bound = tool.get("bound_arguments") or {}
+        return evaluate_python(arguments["code"],
+                               bound.get("reference_tests") or {},
+                               bound.get("execution_metadata") or {},
+                               float(bound.get("timeout_seconds", 6.0)),
+                               int(bound.get("memory_mb", 768)))
     inputs = tool.get("inputs") or {}
     if set(arguments) != set(inputs):
         raise TypeError("tool arguments do not match the declared inputs")

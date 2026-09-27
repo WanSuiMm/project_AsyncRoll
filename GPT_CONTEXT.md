@@ -16,6 +16,11 @@ grading, or RL loop. See [RESULTS.md](RESULTS.md).
 | Formal comparison | Not run |
 | Speedup claim | Unsupported |
 
+The pending code-agent experiment has its own protocol ID and configuration:
+`PROTOCOL_LIVECODEBENCH.md` and `experiments/livecodebench_5090.json`. It uses
+an online generate/test/one-repair/test trajectory and cannot be pooled with or
+used to rewrite the ToolMATH screen.
+
 | Variant | Definition | Source |
 | --- | --- | --- |
 | `sync` | One active trajectory | `runtime.run` |
@@ -48,6 +53,9 @@ internal batch size. HTTP duration includes network, server queue and inference.
 | Model-filtered vLLM metrics, optional local NVML | `telemetry.Telemetry`, `parse_vllm_metrics` |
 | Request/queue/worker/trajectory timeline | `timeline.write_timeline`, `build_timeline` |
 | New run directory, event stream and terminal receipt | `cli.main` |
+| LiveCodeBench conversion and hidden-test packaging | `code_workload.convert_livecodebench` |
+| Resource-bounded local code evaluation | `code_executor.evaluate_python` |
+| One-repair state transition | `runtime._trajectory` |
 
 ## Evidence routing
 

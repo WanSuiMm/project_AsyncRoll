@@ -44,6 +44,13 @@ def load_jsonl(path: Path, limit: int | None = None,
                         if not implementation.is_relative_to(root):
                             raise ValueError("Relative tool path escapes tool root")
                     tool["implementation"] = str(implementation)
+            metadata = dict(row.get("metadata", {}))
+            for tool in tools:
+                if tool.get("name") == "lcb_evaluate" and "bound_arguments" not in tool:
+                    tool["bound_arguments"] = {
+                        "reference_tests": metadata.get("reference_tests") or {},
+                        "execution_metadata": metadata.get("execution_metadata") or {},
+                    }
             problems.append(Problem(
                 id=str(row.get("id", line_number)),
                 prompt=str(row["prompt"]),
@@ -51,7 +58,7 @@ def load_jsonl(path: Path, limit: int | None = None,
                 reference_answer=(str(row["reference_answer"])
                                   if row.get("reference_answer") is not None else None),
                 script=row.get("script"),
-                metadata=dict(row.get("metadata", {})),
+                metadata=metadata,
             ))
             if limit is not None and len(problems) >= limit:
                 break

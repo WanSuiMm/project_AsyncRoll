@@ -17,6 +17,11 @@ opportunity and retained one failed tool call, so the frozen protocol stopped
 before comparison. No speedup, accuracy, or causal bubble-recovery claim is
 established. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
 
+The next experiment is a distinct Qwen2.5-Coder + full LiveCodeBench one-repair
+workload. It keeps the old negative result frozen and re-qualifies the model,
+evaluator and opportunity screen before any FIFO versus AsyncRoll comparison.
+See [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
+
 ## One experiment on a dedicated rented RTX 5090
 
 1. Freeze a seeded ToolMATH subset, model revision, server version/settings,
