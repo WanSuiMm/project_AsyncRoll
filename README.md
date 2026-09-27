@@ -109,7 +109,7 @@ See [MEASUREMENT.md](MEASUREMENT.md) before using any throughput number.
 Convert a pinned full-data export to a deterministic stdin-only subset:
 
 ```powershell
-python -m asyncroll.cli convert-livecodebench --source data/livecodebench/test.jsonl --output data/livecodebench/selected-512.jsonl --limit 512 --seed 20260927 --stdin-only
+python -m asyncroll.cli convert-livecodebench --source data/livecodebench/test.jsonl --output data/livecodebench/selected-219.jsonl --limit 219 --seed 20260927 --stdin-only
 ```
 
 Each trajectory submits one complete Python program to the CPU evaluator and,

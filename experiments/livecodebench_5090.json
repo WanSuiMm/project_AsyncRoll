@@ -15,7 +15,8 @@
     "stdin_only": true,
     "qualification_tasks": 8,
     "opportunity_tasks": 128,
-    "comparison_tasks": 512,
+    "comparison_tasks": 219,
+    "selected_workload_sha256": "2951af5fa6da0286ed62462e85d4ca41abf45f6dc3b2e22123d46ce2d7618d6c",
     "repair_attempts": 1
   },
   "comparison": {

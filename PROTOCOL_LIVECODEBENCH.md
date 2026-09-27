@@ -22,9 +22,14 @@ official offline Self Repair CLI implements this runtime loop.
 2. Run a 128-task FIFO opportunity screen. Stop if execution does not create a
    CPU queue and a sampled CPU-related idle opportunity. Do not add sleeps or
    select convenient slow tasks after observing the result.
-3. If the screen passes, compare FIFO with AsyncRoll on the fixed 512-task set
+3. If the screen passes, compare FIFO with AsyncRoll on all 219 stdin-style
+   tasks available in the pinned full release_v6 export
    in three alternating-order pairs. Restart vLLM before each arm and use the
    same warmup, model, tests, decoding, resource limits and concurrency.
+
+The source contains 454 release_v6 tasks; 219 use stdin semantics and 235 use
+function-call semantics. V1 freezes the 219 supported tasks instead of mixing
+checker implementations or claiming the requested approximate 512 count.
 
 The fixed starting configuration is
 [`experiments/livecodebench_5090.json`](experiments/livecodebench_5090.json).
