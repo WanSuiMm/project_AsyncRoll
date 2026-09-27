@@ -1,5 +1,21 @@
 # Results
 
+## LiveCodeBench v2 formal comparison
+
+The amended v2 protocol completed all three paired FIFO/AsyncRoll comparisons;
+every arm completed 219/219 trajectories. AsyncRoll's paired throughput changes
+were **+1.38%, -2.90%, and +0.40%**. The paired mean was **-0.37%** with a
+descriptive 95% t interval of **[-5.94%, +5.20%]** across three pairs. Pooling
+elapsed time across arms gives the same conclusion: AsyncRoll throughput was
+0.37% lower than FIFO. This experiment provides no evidence that AsyncRoll
+improves throughput under the tested configuration.
+
+Mean exact pass rate was 28.46% for FIFO and 29.07% for AsyncRoll, a descriptive
++0.61 percentage-point difference. Pass rate was a comparability check rather
+than evidence for a quality improvement, and three pairs are insufficient for a
+quality claim. The canonical receipt is
+[`results/livecodebench_20260927_v4/experiment.json`](results/livecodebench_20260927_v4/experiment.json).
+
 ## LiveCodeBench v1 opportunity screen
 
 The Qwen2.5-Coder-7B-Instruct one-repair workload qualified and completed its
