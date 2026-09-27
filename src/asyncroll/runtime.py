@@ -371,7 +371,12 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
     profiler = None
     recorder = Recorder(sink=event_sink)
     setup_started = time.perf_counter()
-    tools = list({(t.get("implementation"), t["name"]): t for p in problems for t in p.tools}.values())
+    # Worker startup only needs trusted importable callables. Builtins carry
+    # per-problem bound data (large hidden test sets for code evaluation) and
+    # must travel only with the dispatched job that uses them.
+    tools = list({(t["implementation"], t["name"]): t
+                  for p in problems for t in p.tools
+                  if "implementation" in t}.values())
     slots = asyncio.Semaphore(max_inflight_model_requests)
     stop = asyncio.Event()
     sampler = None
