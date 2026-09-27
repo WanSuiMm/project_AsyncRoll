@@ -1,0 +1,3 @@
+{"id":"a","prompt":"Compute 2+3 using add.","tools":[{"name":"add","description":"Add two numbers","inputs":{"a":"number","b":"number"}}],"reference_answer":"5","script":[{"type":"tool","name":"add","arguments":{"a":2,"b":3}},{"type":"final","answer":"5"}]}
+{"id":"b","prompt":"Wait 20 milliseconds then answer 7.","tools":[{"name":"sleep_ms","description":"Wait a specified number of milliseconds","inputs":{"milliseconds":"number"}}],"reference_answer":"7","script":[{"type":"tool","name":"sleep_ms","arguments":{"milliseconds":20}},{"type":"final","answer":"7"}]}
+{"id":"c","prompt":"Answer 11.","tools":[],"reference_answer":"11","script":[{"type":"final","answer":"11"}]}
