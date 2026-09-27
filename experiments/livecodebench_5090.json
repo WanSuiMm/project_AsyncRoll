@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "protocol_id": "asyncroll-single-5090-qwen-coder-lcb-v1",
+  "protocol_id": "asyncroll-single-5090-qwen-coder-lcb-v2",
   "model": {
     "repository": "Qwen/Qwen2.5-Coder-7B-Instruct",
     "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
@@ -51,6 +51,7 @@
   "opportunity_gate": {
     "minimum_cpu_related_idle_candidate_seconds": 0.001,
     "minimum_joint_observation_coverage_fraction": 0.8,
+    "require_joint_observation_coverage": false,
     "minimum_client_cpu_blocked_seconds": 0.001,
     "minimum_cpu_max_queue_depth": 2,
     "minimum_tool_queue_p95_seconds": 0.005

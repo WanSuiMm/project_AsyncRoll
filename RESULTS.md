@@ -1,5 +1,20 @@
 # Results
 
+## LiveCodeBench v1 opportunity screen
+
+The Qwen2.5-Coder-7B-Instruct one-repair workload qualified and completed its
+128-task FIFO opportunity screen. Four of five v1 gates passed: client CPU
+blocking was 2.708 s, maximum CPU queue depth was 29, CPU-related idle candidate
+time was 1.751 s, and tool-queue p95 was 10.169 s. Joint vLLM/NVML observation
+coverage was 76.07%, below the 80% telemetry gate, so v1 stopped before the
+comparison. The 128-task pass rate was 26.56%.
+
+At the user's explicit direction, v2 removes joint telemetry coverage as a hard
+stop while continuing to report it. The other four opportunity gates and the
+three paired FIFO/AsyncRoll comparisons remain unchanged. This is a documented
+post-screen protocol amendment; the v1 receipt is preserved at
+[`results/livecodebench_20260927_v3/experiment.json`](results/livecodebench_20260927_v3/experiment.json).
+
 ## Current result
 
 The frozen single-RTX-5090 experiment qualified the live Qwen/ToolMATH stack,

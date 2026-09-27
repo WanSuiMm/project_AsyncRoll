@@ -66,7 +66,7 @@ def main() -> None:
     if args.output.exists():
         parser.error("--output must be a new directory")
     config = json.loads(args.config.read_text(encoding="utf-8"))
-    if config.get("protocol_id") != "asyncroll-single-5090-qwen-coder-lcb-v1":
+    if config.get("protocol_id") != "asyncroll-single-5090-qwen-coder-lcb-v2":
         parser.error("unexpected protocol_id")
     args.output.mkdir(parents=True)
     receipt = {"status": "running", "protocol_id": config["protocol_id"],
@@ -97,6 +97,9 @@ def main() -> None:
             command.extend(["--structured-outputs-config", structured])
         environment = os.environ.copy()
         environment["CUDA_VISIBLE_DEVICES"] = str(args.gpu_index)
+        source_root = str(Path(__file__).resolve().parents[1] / "src")
+        environment["PYTHONPATH"] = (source_root + os.pathsep + environment["PYTHONPATH"]
+                                     if environment.get("PYTHONPATH") else source_root)
         with server_log_path.open("w", encoding="utf-8") as server_log:
             process = subprocess.Popen(command, stdout=server_log, stderr=subprocess.STDOUT,
                                        env=environment, start_new_session=True, text=True)
@@ -135,7 +138,7 @@ def main() -> None:
                 stop_process(process)
         log_text = server_log_path.read_text(encoding="utf-8", errors="replace")
         # Keep experiment.json as a compact control-plane receipt. The arm's
-        # per-trajectory records remain in its own asyncroll-run/summary.json.
+        # per-trajectory records stream to asyncroll-run/results.jsonl.
         compact_summary = {key: value for key, value in summary.items()
                            if key != "results"}
         result = {"stage": stage, "policy": policy, "limit": limit,
@@ -181,9 +184,16 @@ def main() -> None:
             "joint_observation_coverage_fraction": values["joint_observation_coverage_fraction"] >= gates["minimum_joint_observation_coverage_fraction"],
             "tool_queue_p95_seconds": values["tool_queue_p95_seconds"] is not None and values["tool_queue_p95_seconds"] >= gates["minimum_tool_queue_p95_seconds"],
         }
-        receipt["opportunity"] = {"values": values, "checks": checks,
-                                  "pass": all(checks.values())}
-        if not all(checks.values()):
+        required_checks = dict(checks)
+        if not gates.get("require_joint_observation_coverage", True):
+            required_checks.pop("joint_observation_coverage_fraction")
+        opportunity_pass = all(required_checks.values())
+        receipt["opportunity"] = {
+            "values": values, "checks": checks,
+            "required_checks": sorted(required_checks),
+            "protocol_amendment": "Joint telemetry coverage is recorded but is not a stop gate in v2.",
+            "pass": opportunity_pass}
+        if not opportunity_pass:
             receipt["status"] = "stopped_no_cpu_opportunity"
             return
         for pair_index, order in enumerate(config["comparison"]["orders"], 1):

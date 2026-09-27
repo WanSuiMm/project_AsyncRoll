@@ -1,5 +1,15 @@
 # LiveCodeBench one-repair protocol
 
+## v2 protocol amendment (2026-09-27)
+
+The v1 opportunity screen completed 128/128 tasks and passed four of five
+opportunity checks. Joint vLLM/NVML observation coverage was 0.7607 versus the
+0.80 stop threshold. Because coverage measures telemetry alignment rather than
+the presence of CPU scheduling opportunity, v2 records this value but removes
+it as a hard stop gate. The CPU queue, client blocking, CPU-related idle
+candidate, and tool-queue latency gates remain required. The v1 receipt is
+preserved unchanged; v2 comparisons are interpreted under this amended protocol.
+
 This is a new experiment. It does not replace the frozen ToolMATH result in
 [RESULTS.md](RESULTS.md).
 
