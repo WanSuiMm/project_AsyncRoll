@@ -8,11 +8,12 @@ timeline. The completed 32-active LiveCodeBench comparison found -0.37% mean
 AsyncRoll throughput change; its AsyncRoll arms made zero reorder decisions and
 therefore tested a FIFO-equivalent policy. That result remains frozen.
 
-The code-ready v3 engineering optimization fixes a latency-sensitive operating
-point at 8 active trajectories, 4 inflight model requests and 2 CPU workers. It
-adds per-job online cost prediction, soft aging and an activation gate before a
-matched FIFO/AsyncRoll comparison. It has not been deployed, and no positive
-gain is claimed. See [PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
+The v3 engineering optimization fixed a latency-sensitive operating point at 8
+active trajectories, 4 inflight model requests and 2 CPU workers. Its per-job
+predictor distinguished 224 feature keys with positive log-time correlation,
+but only 2 dispatches became eligible and 1 reordered. The activation gate
+stopped the run before comparison, so no positive gain is claimed. See
+[PROTOCOL_LIVECODEBENCH.md](PROTOCOL_LIVECODEBENCH.md).
 
 ## Start here
 

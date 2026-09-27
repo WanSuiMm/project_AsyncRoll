@@ -13,9 +13,10 @@ independent concurrency limits, vLLM/NVML telemetry, optional NVTX and portable
 experiment launchers. The completed 32-active LiveCodeBench v2 comparison found
 -0.37% mean throughput change and zero AsyncRoll reorders. V3 keeps that result
 and fixes a single bounded-concurrency operating point at 8 active trajectories,
-4 model requests and 2 CPU workers. It adds per-job online ridge prediction,
-soft aging and an activation gate. V3 is code-ready and unrun; no positive gain
-is claimed. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
+4 model requests and 2 CPU workers. It added per-job online ridge prediction,
+soft aging and an activation gate. V3 stopped at that gate: only 2 decisions
+were eligible and 1 reordered, so the formal comparison did not run. No positive
+gain is claimed. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
 
 The canonical next command uses `scripts/run_lcb_bounded_single_gpu.py` with
 `experiments/livecodebench_bounded_8x4.json`. It re-qualifies the stack, checks

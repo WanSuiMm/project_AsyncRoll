@@ -1,5 +1,20 @@
 # Results
 
+## Bounded-concurrency v3 activation screen
+
+The fixed 8-active/4-inflight/2-worker run qualified and passed the FIFO CPU
+opportunity screen, then stopped at the AsyncRoll activation gate. The 128-task
+activation arm completed 128/128 trajectories, exposed 224 distinct feature
+keys and achieved +0.105 predicted/actual log-duration correlation. However,
+only two dispatches were eligible under the low-model-supply trigger and only
+one reordered, below the frozen minima of 10 and 5. The formal comparison was
+not run and no throughput gain is established.
+
+This localizes the remaining mechanism failure: per-job costs are now
+distinguishable, while `model_outstanding < 1` makes ordering eligible too
+rarely. The canonical receipt is
+[`results/livecodebench_bounded_20260927_v5/experiment.json`](results/livecodebench_bounded_20260927_v5/experiment.json).
+
 ## LiveCodeBench v2 formal comparison
 
 The amended v2 protocol completed all three paired FIFO/AsyncRoll comparisons;

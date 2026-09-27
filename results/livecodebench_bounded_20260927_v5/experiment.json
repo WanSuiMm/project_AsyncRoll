@@ -1,0 +1,728 @@
+{
+  "status": "stopped_scheduler_not_activated",
+  "protocol_id": "asyncroll-bounded-8x4-qwen-coder-lcb-v3",
+  "started_utc": "2026-09-27T10:50:20.841756+00:00",
+  "config": {
+    "schema_version": 1,
+    "protocol_id": "asyncroll-bounded-8x4-qwen-coder-lcb-v3",
+    "model": {
+      "repository": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+      "served_name": "asyncroll-coder"
+    },
+    "workload": {
+      "repository": "livecodebench/code_generation",
+      "revision": "bb83f1c3c643a772b7a2a8f07bd62c2aab76be8f",
+      "source_sha256": "412b80eacab2ac1deb5fc02a067ed3eddbf130f9a121d690bdbf76df09bc81c9",
+      "release": "release_v6",
+      "selection_seed": 20260927,
+      "stdin_only": true,
+      "qualification_tasks": 8,
+      "opportunity_tasks": 128,
+      "activation_tasks": 128,
+      "comparison_tasks": 219,
+      "selected_workload_sha256": "2951af5fa6da0286ed62462e85d4ca41abf45f6dc3b2e22123d46ce2d7618d6c",
+      "repair_attempts": 1
+    },
+    "comparison": {
+      "replicates": 3,
+      "orders": [
+        [
+          "fifo",
+          "asyncroll"
+        ],
+        [
+          "asyncroll",
+          "fifo"
+        ],
+        [
+          "fifo",
+          "asyncroll"
+        ]
+      ]
+    },
+    "server": {
+      "dtype": "bfloat16",
+      "gpu_memory_utilization": 0.9,
+      "max_model_len": 8192,
+      "max_num_seqs": 8,
+      "max_num_batched_tokens": 8192,
+      "prefix_caching": true,
+      "chunked_prefill": true,
+      "structured_outputs_backend": null,
+      "disable_any_whitespace": false
+    },
+    "runtime": {
+      "cpu_workers": 2,
+      "max_active_trajectories": 8,
+      "max_inflight_model_requests": 4,
+      "max_turns": 2,
+      "max_tokens": 2048,
+      "warmup_requests": 8,
+      "tool_timeout_seconds": 20,
+      "worker_startup_timeout_seconds": 120,
+      "request_timeout_seconds": 180,
+      "telemetry_interval_seconds": 0.2,
+      "starvation_threshold": 1,
+      "aging_seconds": 30,
+      "aging_weight": 0.02
+    },
+    "opportunity_gate": {
+      "minimum_cpu_related_idle_candidate_seconds": 0.001,
+      "minimum_joint_observation_coverage_fraction": 0.0,
+      "require_joint_observation_coverage": false,
+      "minimum_client_cpu_blocked_seconds": 0.001,
+      "minimum_cpu_max_queue_depth": 2,
+      "minimum_tool_queue_p95_seconds": 0.005
+    },
+    "activation_gate": {
+      "minimum_eligible_decisions": 10,
+      "minimum_reorders": 5,
+      "minimum_activation_rate": 0.05,
+      "minimum_distinct_feature_keys": 8,
+      "minimum_prediction_log_pearson": 0.05
+    }
+  },
+  "stages": [
+    {
+      "stage": "qualification-fifo",
+      "policy": "fifo",
+      "limit": 8,
+      "summary": {
+        "count": 8,
+        "completed": 8,
+        "failed": 0,
+        "elapsed_seconds": 10.225597589276731,
+        "completed_per_wall_hour": 2816.4613117771887,
+        "total_tool_calls": 15,
+        "total_tool_attempts": 15,
+        "trajectory_tool_call_rate": 1.0,
+        "model_attempts": 15,
+        "model_responses": 15,
+        "model_success_rate": 1.0,
+        "action_valid_rate": 1.0,
+        "graded": 8,
+        "exact_accuracy": 0.125,
+        "trajectory_latency": {
+          "count": 8,
+          "total_seconds": 59.66948012728244,
+          "p50_seconds": 6.664290805347264,
+          "p95_seconds": 10.223261108621955
+        },
+        "phase_seconds": {
+          "model_queue": {
+            "count": 15,
+            "total_seconds": 18.570847620256245,
+            "p50_seconds": 1.3087887670844793,
+            "p95_seconds": 2.5871667293831706
+          },
+          "model_http": {
+            "count": 15,
+            "total_seconds": 35.8226857483387,
+            "p50_seconds": 1.9600641075521708,
+            "p95_seconds": 4.10064903087914
+          },
+          "parsing": {
+            "count": 15,
+            "total_seconds": 0.0024544307962059975,
+            "p50_seconds": 0.00015733856707811356,
+            "p95_seconds": 0.00023179687559604645
+          },
+          "tool_queue": {
+            "count": 15,
+            "total_seconds": 1.8837449429556727,
+            "p50_seconds": 0.0372038260102272,
+            "p95_seconds": 0.6842508437111974
+          },
+          "tool_execute": {
+            "count": 15,
+            "total_seconds": 0.7382481517270207,
+            "p50_seconds": 0.025886782445013523,
+            "p95_seconds": 0.04728887975215912
+          },
+          "tool_process_cpu": {
+            "count": 15,
+            "total_seconds": 0.10060521499999994,
+            "p50_seconds": 0.004518221999999988,
+            "p95_seconds": 0.0073931399999999925
+          },
+          "tool_serialization": {
+            "count": 15,
+            "total_seconds": 0.0008136676624417305,
+            "p50_seconds": 5.334429442882538e-05,
+            "p95_seconds": 8.02529975771904e-05
+          },
+          "tool_dispatch": {
+            "count": 15,
+            "total_seconds": 2.4720458704978228,
+            "p50_seconds": 0.058618064038455486,
+            "p95_seconds": 0.48402233980596066
+          },
+          "tool_harness": {
+            "count": 15,
+            "total_seconds": 1.7329840511083603,
+            "p50_seconds": 0.02426808886229992,
+            "p95_seconds": 0.45804827380925417
+          },
+          "grade_queue": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_execute": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_process_cpu": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_serialization": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_dispatch": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_harness": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          }
+        },
+        "event_recording_seconds": 0.17221618071198463,
+        "phase_note": "Overlapping accumulated durations; not additive wall-clock shares. HTTP includes transport and server queue/inference. Timed-out execution is unknown.",
+        "resource_metrics": {
+          "completed_per_gpu_hour": 2816.4613117771887,
+          "dedicated_single_gpu_declared": true,
+          "client_cpu_blocked_seconds": 0.30485279485583305,
+          "model_starvation_seconds": 0.0002206200733780861,
+          "cpu_related_idle_candidate_seconds": 0.0002206200733780861,
+          "server_observation_coverage_seconds": 6.252226993441582,
+          "joint_observation_coverage_seconds": 6.252226993441582,
+          "max_sample_gap_seconds": 0.6000000000000001,
+          "low_gpu_percent": 10.0,
+          "scheduler_decisions": 15,
+          "cpu_max_queue_depth": 2,
+          "scheduler_reorders": 0,
+          "scheduler_eligible_decisions": 0,
+          "scheduler_activation_rate": null,
+          "scheduler_reason_counts": {
+            "fifo": 15
+          },
+          "scheduler_distinct_feature_keys": 15,
+          "known_cost_decisions": 14,
+          "prediction_log_pearson": -0.054455160096416884,
+          "prediction_pairs": 15,
+          "interpretation": "Sampled empty vLLM queues overlapping pending CPU continuations and no client model work. Endpoints do not prove continuous server idleness. Low NVML activity yields a candidate, not recoverable GPU time. GPU-hour counts one dedicated allocated GPU during measurement only.",
+          "cpu_cost_complete": true,
+          "parent_cpu_core_seconds": 3.537622591,
+          "worker_cpu_core_seconds": 0.7910261869999999,
+          "cpu_core_seconds": 4.328648778,
+          "cpu_core_seconds_per_completed_trajectory": 0.54108109725,
+          "cpu_cost_scope": "Client process and persistent tool workers; excludes vLLM/server, other processes and startup. Worker IPC boundary skew is included; cost is unknown if a worker was killed/replaced."
+        },
+        "scheduler": {
+          "starvation_threshold": 1,
+          "aging_seconds": 30.0,
+          "aging_weight": 0.02,
+          "estimator": "Online ridge on pre-execution per-job features; reset each run"
+        },
+        "nvtx_enabled": false,
+        "policy": "fifo",
+        "requested_policy": "fifo",
+        "cpu_workers": 2,
+        "max_inflight_model_requests": 4,
+        "max_active_trajectories": 8,
+        "effective_max_active_trajectories": 8,
+        "warmup": {
+          "worker_seconds": 0.176467246375978,
+          "model_seconds": 7.886412785388529,
+          "requests": 8,
+          "note": "First-turn workload requests; may warm prefix/grammar caches. Does not certify all CUDA graph/kernel shapes are warm."
+        },
+        "telemetry_probe": {
+          "requested_sources": {
+            "vllm": true,
+            "nvml": true
+          },
+          "probe_errors": {
+            "vllm": null,
+            "nvml": null
+          },
+          "missing_metrics": [],
+          "invalid_metrics": [],
+          "availability": {
+            "vllm": true,
+            "nvml": true
+          }
+        },
+        "telemetry": {
+          "enabled": true,
+          "sample_count": 44,
+          "error_samples": 0,
+          "missing_metric_samples": 0,
+          "invalid_metric_samples": 0
+        }
+      },
+      "summary_path": "qualification-fifo/asyncroll-run/summary.json",
+      "startup": {
+        "flash_attention": true,
+        "cuda_graph": true
+      }
+    },
+    {
+      "stage": "opportunity-fifo",
+      "policy": "fifo",
+      "limit": 128,
+      "summary": {
+        "count": 128,
+        "completed": 127,
+        "failed": 1,
+        "elapsed_seconds": 158.21335930470377,
+        "completed_per_wall_hour": 2889.768613783597,
+        "total_tool_calls": 222,
+        "total_tool_attempts": 222,
+        "trajectory_tool_call_rate": 1.0,
+        "model_attempts": 223,
+        "model_responses": 222,
+        "model_success_rate": 0.9955156950672646,
+        "action_valid_rate": 1.0,
+        "graded": 127,
+        "exact_accuracy": 0.25984251968503935,
+        "trajectory_latency": {
+          "count": 128,
+          "total_seconds": 1241.152952292934,
+          "p50_seconds": 8.943275551311672,
+          "p95_seconds": 18.83786546252668
+        },
+        "phase_seconds": {
+          "model_queue": {
+            "count": 223,
+            "total_seconds": 350.92986320052296,
+            "p50_seconds": 1.6320346659049392,
+            "p95_seconds": 3.1356401909142733
+          },
+          "model_http": {
+            "count": 223,
+            "total_seconds": 574.2943668216467,
+            "p50_seconds": 2.360648876056075,
+            "p95_seconds": 4.771305178292096
+          },
+          "parsing": {
+            "count": 223,
+            "total_seconds": 0.03577587194740772,
+            "p50_seconds": 0.00015725288540124893,
+            "p95_seconds": 0.0002435212954878807
+          },
+          "tool_queue": {
+            "count": 222,
+            "total_seconds": 153.27429751493037,
+            "p50_seconds": 0.2038248716853559,
+            "p95_seconds": 4.345655820332468
+          },
+          "tool_execute": {
+            "count": 222,
+            "total_seconds": 96.3469424014911,
+            "p50_seconds": 0.02933355700224638,
+            "p95_seconds": 5.198272595182061
+          },
+          "tool_process_cpu": {
+            "count": 222,
+            "total_seconds": 2.816771366000013,
+            "p50_seconds": 0.0050359489999998175,
+            "p95_seconds": 0.05664178299999989
+          },
+          "tool_serialization": {
+            "count": 222,
+            "total_seconds": 0.010133153758943081,
+            "p50_seconds": 3.822147846221924e-05,
+            "p95_seconds": 0.0001043565571308136
+          },
+          "tool_dispatch": {
+            "count": 222,
+            "total_seconds": 143.19833784364164,
+            "p50_seconds": 0.15674713719636202,
+            "p95_seconds": 5.232057747431099
+          },
+          "tool_harness": {
+            "count": 222,
+            "total_seconds": 46.84126228839159,
+            "p50_seconds": 0.031369315925985575,
+            "p95_seconds": 0.8904454642906785
+          },
+          "grade_queue": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_execute": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_process_cpu": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_serialization": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_dispatch": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_harness": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          }
+        },
+        "event_recording_seconds": 0.6566612292081118,
+        "phase_note": "Overlapping accumulated durations; not additive wall-clock shares. HTTP includes transport and server queue/inference. Timed-out execution is unknown.",
+        "resource_metrics": {
+          "completed_per_gpu_hour": 2889.768613783597,
+          "dedicated_single_gpu_declared": true,
+          "client_cpu_blocked_seconds": 3.0048279156908393,
+          "model_starvation_seconds": 0.9658392248675227,
+          "cpu_related_idle_candidate_seconds": 0.31499556079506874,
+          "server_observation_coverage_seconds": 85.90114136599004,
+          "joint_observation_coverage_seconds": 85.90114136599004,
+          "max_sample_gap_seconds": 0.6000000000000001,
+          "low_gpu_percent": 10.0,
+          "scheduler_decisions": 222,
+          "cpu_max_queue_depth": 6,
+          "scheduler_reorders": 0,
+          "scheduler_eligible_decisions": 0,
+          "scheduler_activation_rate": null,
+          "scheduler_reason_counts": {
+            "fifo": 222
+          },
+          "scheduler_distinct_feature_keys": 222,
+          "known_cost_decisions": 221,
+          "prediction_log_pearson": 0.1881794813282018,
+          "prediction_pairs": 222,
+          "interpretation": "Sampled empty vLLM queues overlapping pending CPU continuations and no client model work. Endpoints do not prove continuous server idleness. Low NVML activity yields a candidate, not recoverable GPU time. GPU-hour counts one dedicated allocated GPU during measurement only.",
+          "cpu_cost_complete": true,
+          "parent_cpu_core_seconds": 79.223718985,
+          "worker_cpu_core_seconds": 23.483134111,
+          "cpu_core_seconds": 102.706853096,
+          "cpu_core_seconds_per_completed_trajectory": 0.8087153787086614,
+          "cpu_cost_scope": "Client process and persistent tool workers; excludes vLLM/server, other processes and startup. Worker IPC boundary skew is included; cost is unknown if a worker was killed/replaced."
+        },
+        "scheduler": {
+          "starvation_threshold": 1,
+          "aging_seconds": 30.0,
+          "aging_weight": 0.02,
+          "estimator": "Online ridge on pre-execution per-job features; reset each run"
+        },
+        "nvtx_enabled": false,
+        "policy": "fifo",
+        "requested_policy": "fifo",
+        "cpu_workers": 2,
+        "max_inflight_model_requests": 4,
+        "max_active_trajectories": 8,
+        "effective_max_active_trajectories": 8,
+        "warmup": {
+          "worker_seconds": 0.1723424419760704,
+          "model_seconds": 7.935717986896634,
+          "requests": 8,
+          "note": "First-turn workload requests; may warm prefix/grammar caches. Does not certify all CUDA graph/kernel shapes are warm."
+        },
+        "telemetry_probe": {
+          "requested_sources": {
+            "vllm": true,
+            "nvml": true
+          },
+          "probe_errors": {
+            "vllm": null,
+            "nvml": null
+          },
+          "missing_metrics": [],
+          "invalid_metrics": [],
+          "availability": {
+            "vllm": true,
+            "nvml": true
+          }
+        },
+        "telemetry": {
+          "enabled": true,
+          "sample_count": 576,
+          "error_samples": 3,
+          "missing_metric_samples": 0,
+          "invalid_metric_samples": 0
+        }
+      },
+      "summary_path": "opportunity-fifo/asyncroll-run/summary.json",
+      "startup": {
+        "flash_attention": true,
+        "cuda_graph": true
+      }
+    },
+    {
+      "stage": "activation-asyncroll",
+      "policy": "asyncroll",
+      "limit": 128,
+      "summary": {
+        "count": 128,
+        "completed": 128,
+        "failed": 0,
+        "elapsed_seconds": 167.09678585734218,
+        "completed_per_wall_hour": 2757.6832051898655,
+        "total_tool_calls": 224,
+        "total_tool_attempts": 224,
+        "trajectory_tool_call_rate": 1.0,
+        "model_attempts": 224,
+        "model_responses": 224,
+        "model_success_rate": 1.0,
+        "action_valid_rate": 1.0,
+        "graded": 128,
+        "exact_accuracy": 0.25,
+        "trajectory_latency": {
+          "count": 128,
+          "total_seconds": 1315.804226170294,
+          "p50_seconds": 9.394816774874926,
+          "p95_seconds": 21.24506627302617
+        },
+        "phase_seconds": {
+          "model_queue": {
+            "count": 224,
+            "total_seconds": 371.1556694051251,
+            "p50_seconds": 1.7630475275218487,
+            "p95_seconds": 3.3586854934692383
+          },
+          "model_http": {
+            "count": 224,
+            "total_seconds": 603.5256671290845,
+            "p50_seconds": 2.46404055505991,
+            "p95_seconds": 5.029988868162036
+          },
+          "parsing": {
+            "count": 224,
+            "total_seconds": 0.03394942916929722,
+            "p50_seconds": 0.00015462283045053482,
+            "p95_seconds": 0.00022223126143217087
+          },
+          "tool_queue": {
+            "count": 224,
+            "total_seconds": 169.18089276272804,
+            "p50_seconds": 0.2634565541520715,
+            "p95_seconds": 4.208186681382358
+          },
+          "tool_execute": {
+            "count": 224,
+            "total_seconds": 115.65425384230912,
+            "p50_seconds": 0.028235416393727064,
+            "p95_seconds": 5.20516811311245
+          },
+          "tool_process_cpu": {
+            "count": 224,
+            "total_seconds": 3.1008104760000093,
+            "p50_seconds": 0.004761186000000084,
+            "p95_seconds": 0.050243370000000454
+          },
+          "tool_serialization": {
+            "count": 224,
+            "total_seconds": 0.009704670868813992,
+            "p50_seconds": 3.569852560758591e-05,
+            "p95_seconds": 0.00010494887828826904
+          },
+          "tool_dispatch": {
+            "count": 224,
+            "total_seconds": 155.7430649222806,
+            "p50_seconds": 0.15379864536225796,
+            "p95_seconds": 5.305147452279925
+          },
+          "tool_harness": {
+            "count": 224,
+            "total_seconds": 40.07910640910268,
+            "p50_seconds": 0.025609347969293594,
+            "p95_seconds": 0.7370636956766248
+          },
+          "grade_queue": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_execute": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_process_cpu": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_serialization": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_dispatch": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          },
+          "grade_harness": {
+            "count": 0,
+            "total_seconds": 0,
+            "p50_seconds": null,
+            "p95_seconds": null
+          }
+        },
+        "event_recording_seconds": 0.5781169319525361,
+        "phase_note": "Overlapping accumulated durations; not additive wall-clock shares. HTTP includes transport and server queue/inference. Timed-out execution is unknown.",
+        "resource_metrics": {
+          "completed_per_gpu_hour": 2757.6832051898655,
+          "dedicated_single_gpu_declared": true,
+          "client_cpu_blocked_seconds": 3.281225393526256,
+          "model_starvation_seconds": 1.0366352992132306,
+          "cpu_related_idle_candidate_seconds": 0.8831112179905176,
+          "server_observation_coverage_seconds": 93.01576013211161,
+          "joint_observation_coverage_seconds": 93.01576013211161,
+          "max_sample_gap_seconds": 0.6000000000000001,
+          "low_gpu_percent": 10.0,
+          "scheduler_decisions": 224,
+          "cpu_max_queue_depth": 6,
+          "scheduler_reorders": 1,
+          "scheduler_eligible_decisions": 2,
+          "scheduler_activation_rate": 0.5,
+          "scheduler_reason_counts": {
+            "fifo": 222,
+            "low_model_supply_predicted_unlock": 2
+          },
+          "scheduler_distinct_feature_keys": 224,
+          "known_cost_decisions": 223,
+          "prediction_log_pearson": 0.10452702436842208,
+          "prediction_pairs": 224,
+          "interpretation": "Sampled empty vLLM queues overlapping pending CPU continuations and no client model work. Endpoints do not prove continuous server idleness. Low NVML activity yields a candidate, not recoverable GPU time. GPU-hour counts one dedicated allocated GPU during measurement only.",
+          "cpu_cost_complete": true,
+          "parent_cpu_core_seconds": 81.25903508,
+          "worker_cpu_core_seconds": 23.566583913,
+          "cpu_core_seconds": 104.825618993,
+          "cpu_core_seconds_per_completed_trajectory": 0.8189501483828125,
+          "cpu_cost_scope": "Client process and persistent tool workers; excludes vLLM/server, other processes and startup. Worker IPC boundary skew is included; cost is unknown if a worker was killed/replaced."
+        },
+        "scheduler": {
+          "starvation_threshold": 1,
+          "aging_seconds": 30.0,
+          "aging_weight": 0.02,
+          "estimator": "Online ridge on pre-execution per-job features; reset each run"
+        },
+        "nvtx_enabled": false,
+        "policy": "asyncroll",
+        "requested_policy": "asyncroll",
+        "cpu_workers": 2,
+        "max_inflight_model_requests": 4,
+        "max_active_trajectories": 8,
+        "effective_max_active_trajectories": 8,
+        "warmup": {
+          "worker_seconds": 0.17967283632606268,
+          "model_seconds": 7.931093025021255,
+          "requests": 8,
+          "note": "First-turn workload requests; may warm prefix/grammar caches. Does not certify all CUDA graph/kernel shapes are warm."
+        },
+        "telemetry_probe": {
+          "requested_sources": {
+            "vllm": true,
+            "nvml": true
+          },
+          "probe_errors": {
+            "vllm": null,
+            "nvml": null
+          },
+          "missing_metrics": [],
+          "invalid_metrics": [],
+          "availability": {
+            "vllm": true,
+            "nvml": true
+          }
+        },
+        "telemetry": {
+          "enabled": true,
+          "sample_count": 624,
+          "error_samples": 2,
+          "missing_metric_samples": 0,
+          "invalid_metric_samples": 0
+        }
+      },
+      "summary_path": "activation-asyncroll/asyncroll-run/summary.json",
+      "startup": {
+        "flash_attention": true,
+        "cuda_graph": true
+      }
+    }
+  ],
+  "qualification": {
+    "pass": true
+  },
+  "opportunity": {
+    "values": {
+      "client_cpu_blocked_seconds": 3.0048279156908393,
+      "cpu_max_queue_depth": 6,
+      "cpu_related_idle_candidate_seconds": 0.31499556079506874,
+      "joint_observation_coverage_fraction": 0.5429449304628737,
+      "tool_queue_p95_seconds": 4.345655820332468
+    },
+    "checks": {
+      "client_cpu_blocked_seconds": true,
+      "cpu_max_queue_depth": true,
+      "cpu_related_idle_candidate_seconds": true,
+      "joint_observation_coverage_fraction": true,
+      "tool_queue_p95_seconds": true
+    },
+    "required_checks": [
+      "client_cpu_blocked_seconds",
+      "cpu_max_queue_depth",
+      "cpu_related_idle_candidate_seconds",
+      "tool_queue_p95_seconds"
+    ],
+    "protocol_amendment": "Joint telemetry coverage is recorded but is not a stop gate in v2.",
+    "pass": true
+  },
+  "activation": {
+    "values": {
+      "eligible_decisions": 2,
+      "reorders": 1,
+      "activation_rate": 0.5,
+      "distinct_feature_keys": 224,
+      "prediction_log_pearson": 0.10452702436842208
+    },
+    "checks": {
+      "eligible_decisions": false,
+      "reorders": false,
+      "activation_rate": true,
+      "distinct_feature_keys": true,
+      "prediction_log_pearson": true
+    },
+    "pass": false
+  },
+  "finished_utc": "2026-09-27T10:59:04.418031+00:00"
+}

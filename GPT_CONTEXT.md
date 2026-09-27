@@ -6,8 +6,9 @@ The completed LiveCodeBench v2 comparison measured -0.37% mean AsyncRoll
 throughput change across three matched pairs. Every AsyncRoll arm recorded zero
 reorders, so v2 is a non-discriminative FIFO-equivalent baseline rather than a
 test of informed CPU ordering. V3 fixes one 8-active/4-inflight/2-worker point
-and adds per-job prediction plus an activation gate. V3 is unrun; there is no
-positive speedup claim or RL loop. See [RESULTS.md](RESULTS.md).
+and adds per-job prediction plus an activation gate. V3 stopped at activation
+with 2 eligible decisions and 1 reorder; there is no positive speedup claim or
+RL loop. See [RESULTS.md](RESULTS.md).
 
 | Formal field | Status |
 | --- | --- |
