@@ -1,48 +1,42 @@
 # Incremental review handoff
 
-- Review base: `bb4913035f2cbcecac63172b0f6bbff7cb04469a`
-- Evidence head: `6e1418ccc7302bb4430171f19e18c592edc8325f`
+- Review base: `6e1418ccc7302bb4430171f19e18c592edc8325f`
+- Evidence head: `2c5d7beaef4cc0a5fd438f9286510d3382854089`
 - This handoff is a later metadata-only commit; review the evidence head above.
 - Validation date: 2026-09-27.
 
-## What changed
+## V6 change
 
-V3 completed qualification, FIFO opportunity and AsyncRoll activation, then
-stopped before comparison because the scheduler did not activate often enough.
-The operating point is fixed at 8 active trajectories, 4 client model requests,
-2 CPU workers and vLLM `max_num_seqs=8`. There is no concurrency sweep.
+V5 stopped because `model_outstanding < 1` yielded only two eligible decisions.
+V6 keeps the frozen 8-active/4-inflight/2-worker point, 219-task workload, vLLM
+settings, soft aging and 30-second hard deadline. It changes two mechanisms:
 
-AsyncRoll now predicts per-job evaluator wall time with an online ridge model
-using pre-execution test count, test-input bytes, generated-code bytes and
-initial/repair status. It applies soft aging and a 30-second hard starvation
-deadline. Metrics now report eligible decisions, activation rate, reorder count,
-decision reasons, feature diversity and predicted/actual log-time correlation.
+1. Reordering is eligible when model outstanding is below the four-request
+   client capacity, so CPU dispatch replenishes supply before the queue empties.
+2. A repair evaluation uses the same problem's observed first-evaluation wall
+   time. Initial evaluations retain the online ridge fallback.
 
-The activation arm completed 128/128 trajectories, exposed 224 distinct feature
-keys and measured +0.105 predicted/actual log-duration correlation. Only two
-decisions were eligible and one reordered, below the required counts of 10 and
-5. The three-pair comparison did not run; no gain is established. V1/v2
-receipts and their negative conclusions are intact.
+The activation gate is exactly 20 eligible decisions, 10 reorders and positive
+same-problem repair log-duration correlation. Passing it launches the unchanged
+six-arm comparison. V6 has not been deployed and has no performance result.
 
 ## Verification
 
-- 67 tests and 8 subtests passed locally.
-- Python compilation passed for the runtime, scheduler, metrics, CLI and runner.
+- 69 tests and 8 subtests passed locally.
+- Python compilation passed for the scheduler, runtime, metrics and v6 runner.
 - Staged content passed whitespace and sensitive-identifier scans.
-- The sanitized v3 activation receipt is published under `results/`.
 
 ## Minimal reading order
 
-1. `PROTOCOL_LIVECODEBENCH.md`: v3 boundary and activation gate.
-2. `experiments/livecodebench_bounded_8x4.json`: frozen operating point.
-3. `src/asyncroll/scheduling.py`: predictor and selection rule.
-4. `src/asyncroll/metrics.py`: activation and prediction diagnostics.
-5. `scripts/run_lcb_bounded_single_gpu.py`: qualification-to-comparison runner.
-6. `RESULTS.md`: completed v1/v2 evidence and the v3 activation stop.
+1. `PROTOCOL_LIVECODEBENCH.md`: v6 mechanism and boundary.
+2. `experiments/livecodebench_bounded_8x4_v6.json`: frozen configuration.
+3. `src/asyncroll/scheduling.py`: proactive trigger and same-problem prior.
+4. `src/asyncroll/metrics.py`: repair-specific prediction correlation.
+5. `scripts/run_lcb_bounded_v6_single_gpu.py`: activation and comparison gates.
+6. `RESULTS.md`: preserved v2 and v5 negative evidence.
 
 ## Reviewer questions
 
-1. Are all predictor features available before execution and free of expected
-   test outputs?
-2. Does the activation gate prevent another FIFO-equivalent comparison?
-3. Does soft aging preserve useful reorder decisions while bounding starvation?
+1. Is same-problem first-evaluation latency a valid online repair predictor?
+2. Does binding the trigger to client capacity match the intended supply signal?
+3. Does the simplified activation gate test the mechanism before comparison?
