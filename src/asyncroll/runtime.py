@@ -267,9 +267,13 @@ async def _trajectory(problem: Problem, backend: ModelBackend,
     except Exception as exc:
         result = {"id": problem.id, "status": "failed",
                   "error": f"{type(exc).__name__}: {exc}"}
+    # Hidden tests can be megabytes per task. They remain bound to the evaluator
+    # tool while the trajectory runs, but must not be duplicated in summary.json.
+    result_metadata = {key: value for key, value in problem.metadata.items()
+                       if key not in {"reference_tests", "prompt_metadata"}}
     result.update(tool_calls=tool_calls, tool_attempts=tool_attempts,
                   latency_seconds=time.perf_counter() - started,
-                  metadata=problem.metadata)
+                  metadata=result_metadata)
     recorder.emit(problem.id, "trajectory_finished", status=result["status"])
     return result
 
@@ -350,6 +354,7 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
               warmup_requests: int = 2, tool_timeout: float = 60,
               worker_startup_timeout: float = 120, telemetry: Any = None,
               event_sink: Callable[[dict], None] | None = None,
+              result_sink: Callable[[dict], None] | None = None,
               gpu_slots: int | None = None, starvation_threshold: int = 1,
               aging_seconds: float = 1.0, nvtx_enabled: bool = False,
               dedicated_gpu: bool = False) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -408,6 +413,8 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
             async def consume() -> None:
                 for index, problem in pending:
                     results[index] = await _trajectory(problem, backend, slots, cpu, recorder, max_turns)
+                    if result_sink:
+                        result_sink(results[index])
 
             active_limit = 1 if policy == "sync" else max_active_trajectories
             consumers = [asyncio.create_task(consume()) for _ in range(min(active_limit, len(problems)))]

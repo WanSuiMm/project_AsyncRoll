@@ -134,8 +134,13 @@ def main() -> None:
             finally:
                 stop_process(process)
         log_text = server_log_path.read_text(encoding="utf-8", errors="replace")
+        # Keep experiment.json as a compact control-plane receipt. The arm's
+        # per-trajectory records remain in its own asyncroll-run/summary.json.
+        compact_summary = {key: value for key, value in summary.items()
+                           if key != "results"}
         result = {"stage": stage, "policy": policy, "limit": limit,
-                  "summary": summary,
+                  "summary": compact_summary,
+                  "summary_path": str(Path(stage) / "asyncroll-run" / "summary.json"),
                   "startup": {"flash_attention": "Using FLASH_ATTN backend" in log_text,
                               "cuda_graph": "Graph capturing finished" in log_text}}
         receipt["stages"].append(result)

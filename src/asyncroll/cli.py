@@ -116,7 +116,8 @@ def main() -> None:
             args.max_tokens, not args.no_structured_output, seed=args.seed))
         telemetry = (Telemetry(metrics_url, args.model, args.nvml_device, args.telemetry_interval)
                      if not args.no_telemetry and (metrics_url or args.nvml_device is not None) else None)
-        with (args.output / "events.jsonl").open("w", encoding="utf-8", buffering=1) as stream:
+        with ((args.output / "events.jsonl").open("w", encoding="utf-8", buffering=1) as stream,
+              (args.output / "results.jsonl").open("w", encoding="utf-8", buffering=1) as result_stream):
             def record(event: dict) -> None:
                 events.append(event)
                 stream.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -125,19 +126,24 @@ def main() -> None:
                     manifest["measurement_started_utc"] = datetime.now(timezone.utc).isoformat()
                     receipt()
 
+            def record_result(result: dict) -> None:
+                result_stream.write(json.dumps(result, ensure_ascii=False) + "\n")
+
             summary, _ = asyncio.run(run(
                 problems, backend, args.policy, cpu_workers=args.cpu_workers,
                 max_inflight_model_requests=args.max_inflight_model_requests,
                 max_turns=args.max_turns, max_active_trajectories=args.max_active_trajectories,
                 warmup_requests=args.warmup_requests, tool_timeout=args.tool_timeout,
                 worker_startup_timeout=args.worker_startup_timeout, telemetry=telemetry,
-                event_sink=record, starvation_threshold=args.starvation_threshold,
+                event_sink=record, result_sink=record_result,
+                starvation_threshold=args.starvation_threshold,
                 aging_seconds=args.aging_seconds, nvtx_enabled=args.nvtx,
                 dedicated_gpu=args.dedicated_gpu))
-        (args.output / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        compact_summary = {key: value for key, value in summary.items() if key != "results"}
+        (args.output / "summary.json").write_text(json.dumps(compact_summary, indent=2), encoding="utf-8")
         write_timeline(events, args.output)
         manifest["status"] = "complete"
-        print(json.dumps({k: v for k, v in summary.items() if k != "results"}, indent=2))
+        print(json.dumps(compact_summary, indent=2))
     except BaseException as exc:
         manifest.update(status="failed", error=f"{type(exc).__name__}: {exc}")
         raise
