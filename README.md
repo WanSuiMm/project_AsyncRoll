@@ -4,17 +4,19 @@ AsyncRoll investigates whether CPU scheduling can keep an inference engine fed
 while agent trajectories alternate between model requests and Python tools.
 The current version provides an inference-only runtime, bounded concurrency,
 warm workers, a pressure-aware CPU policy, NVTX instrumentation and a resource
-timeline. One fixed-config experiment compares FIFO with AsyncRoll on a
-dedicated rented RTX 5090. **There is no live vLLM
-performance result or GPU-bubble recovery claim yet.**
+timeline. The dedicated RTX 5090 run qualified the live stack, but the frozen
+FIFO opportunity screen found no CPU scheduling opportunity. The experiment
+stopped before the FIFO versus AsyncRoll comparison, so there is no speedup or
+GPU-bubble recovery claim. See [RESULTS.md](RESULTS.md).
 
 ## Start here
 
-1. [PROJECT.md](PROJECT.md): question, scope and first experiment stop conditions.
-2. [PROTOCOL.md](PROTOCOL.md): single experiment, estimand and stop rules.
-3. [docs/SINGLE_GPU.md](docs/SINGLE_GPU.md): rental setup, plan, staged execution and Nsight.
-4. [MEASUREMENT.md](MEASUREMENT.md): metric definitions and confounders.
-5. [GPT_CONTEXT.md](GPT_CONTEXT.md): implementation map and evidence.
+1. [RESULTS.md](RESULTS.md): canonical result, gates and claim boundary.
+2. [PROJECT.md](PROJECT.md): question, scope and current decision.
+3. [PROTOCOL.md](PROTOCOL.md): single experiment, estimand and stop rules.
+4. [docs/SINGLE_GPU.md](docs/SINGLE_GPU.md): rental setup, staged execution and Nsight.
+5. [MEASUREMENT.md](MEASUREMENT.md): metric definitions and confounders.
+6. [GPT_CONTEXT.md](GPT_CONTEXT.md): implementation map and evidence routing.
 
 ## Local check
 

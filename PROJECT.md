@@ -11,9 +11,11 @@ policy improve completed trajectories per elapsed hour at equal resources?
 The single-GPU version implements pooled asynchronous HTTP, warm cached tool
 workers, independent concurrency limits, an observed-cost pressure-aware CPU
 policy, vLLM/NVML telemetry, CPU accounting, optional NVTX, and a portable
-experiment launcher. Local tests and scripted smoke validate harness behavior.
-No live model/ToolMATH run, speedup, accuracy qualification, or causal bubble
-recovery result is established. This project is inference only, without RL.
+experiment launcher. The dedicated RTX 5090 stack qualified on 8/8 tasks. The
+32-task FIFO opportunity screen then found no qualifying CPU scheduling
+opportunity and retained one failed tool call, so the frozen protocol stopped
+before comparison. No speedup, accuracy, or causal bubble-recovery claim is
+established. This project is inference only, without RL. See [RESULTS.md](RESULTS.md).
 
 ## One experiment on a dedicated rented RTX 5090
 
@@ -59,5 +61,5 @@ python -m asyncroll.cli run --workload examples/smoke.jsonl --backend scripted -
 ```
 
 See [docs/SINGLE_GPU.md](docs/SINGLE_GPU.md) for rental setup and execution,
-and [MEASUREMENT.md](MEASUREMENT.md) for metric semantics. This update prepares
-code; no GPU experiment has been launched and no previous shared GPU is used.
+[MEASUREMENT.md](MEASUREMENT.md) for metric semantics, and
+[RESULTS.md](RESULTS.md) for the completed screen and stop decision.

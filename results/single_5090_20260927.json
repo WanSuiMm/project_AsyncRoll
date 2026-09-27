@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "protocol_id": "asyncroll-single-5090-qwen-toolmath-v1",
+  "date": "2026-09-27",
+  "code_commit": "def8445fdfb26104b23a5c3da09db16a6ad71647",
+  "model": {
+    "repository": "Qwen/Qwen2.5-Math-7B-Instruct",
+    "revision": "ef9926d75ab1d54532f6a30dd5e760355eb9aa4d"
+  },
+  "workload": {
+    "repository": "CHJ0417/ToolMATH",
+    "source_sha256": "77cde6c200ff8dd1c4b89e24c691db8f4503b36bf9bf4a2115d703515d00866e",
+    "tasks": 32,
+    "selection_seed": 20260927
+  },
+  "environment": {
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "gpu_memory_mib": 32607,
+    "driver": "595.80",
+    "python": "3.12.3",
+    "torch": "2.9.0+cu128",
+    "cuda": "12.8",
+    "vllm": "0.11.2",
+    "attention_backend": "FLASH_ATTN",
+    "structured_outputs_backend": "xgrammar",
+    "cuda_graph_capture_verified": true
+  },
+  "qualification": {
+    "status": "qualified",
+    "tasks": 8,
+    "completed": 8,
+    "failed": 0,
+    "action_valid_rate": 1.0,
+    "trajectory_tool_call_rate": 1.0,
+    "telemetry_samples": 241,
+    "telemetry_error_samples": 0
+  },
+  "opportunity_screen": {
+    "status": "stopped_no_cpu_opportunity",
+    "policy": "fifo",
+    "tasks": 32,
+    "completed": 31,
+    "failed": 1,
+    "trajectory_tool_call_rate": 0.96875,
+    "elapsed_seconds": 118.58025297429413,
+    "completed_per_allocated_gpu_hour": 941.1347775096474,
+    "client_cpu_blocked_seconds": 0.0,
+    "cpu_max_queue_depth": 1,
+    "cpu_related_idle_candidate_seconds": 0.0,
+    "joint_observation_coverage_fraction": 0.7680814036994469,
+    "tool_queue_p95_seconds": 0.001706560142338276,
+    "tool_execute_p95_seconds": 0.0003553153946995735,
+    "cpu_core_seconds": 21.554323212,
+    "cpu_core_seconds_per_completed_trajectory": 0.6953007487741936,
+    "telemetry_samples": 591,
+    "telemetry_error_samples": 0,
+    "gates": {
+      "full_workload_quality": false,
+      "client_cpu_blocked_seconds": false,
+      "cpu_max_queue_depth": false,
+      "cpu_related_idle_candidate_seconds": false,
+      "joint_observation_coverage_fraction": false,
+      "tool_queue_p95_seconds": false
+    }
+  },
+  "failed_tasks": [
+    {
+      "id": "toolmath-10884",
+      "error": "RuntimeError: ZeroDivisionError: division by zero",
+      "tool_attempts": 1,
+      "tool_calls": 0
+    }
+  ],
+  "decision": {
+    "status": "stop",
+    "reason": "The frozen FIFO screen found no qualifying CPU-related GPU-idle opportunity.",
+    "formal_comparison_run": false
+  },
+  "claim_boundary": [
+    "This is one fixed-config FIFO opportunity screen, not a scheduler comparison.",
+    "No AsyncRoll speedup or causal GPU-bubble recovery claim is supported.",
+    "The throughput value is descriptive and the full-workload quality gate failed."
+  ]
+}

@@ -2,11 +2,19 @@
 
 ## Current answer and boundaries
 
-**No empirical answer exists yet** to whether CPU scheduling improves model
-feeding on real ToolMATH trajectories. This inference-only repository has
-local behavior tests and measurement infrastructure. It has no live vLLM
-trace, math-equivalence grading, RL loop, or demonstrated systems speedup.
-Model download receipts and machine operations are intentionally outside Git.
+The live single-GPU stack qualified, but the frozen FIFO opportunity screen
+found no useful CPU scheduling leverage: CPU-blocked time and CPU-related idle
+candidate time were both zero, maximum CPU queue depth was one, and tool queue
+p95 was 1.707 ms. The pre-registered stop rule fired before comparison. There
+is no FIFO versus AsyncRoll result, demonstrated speedup, math-equivalence
+grading, or RL loop. See [RESULTS.md](RESULTS.md).
+
+| Formal field | Status |
+| --- | --- |
+| Qualification | `qualified` (8/8 completed and used a tool) |
+| Opportunity screen | `stopped_no_cpu_opportunity` (31/32 completed) |
+| Formal comparison | Not run |
+| Speedup claim | Unsupported |
 
 | Variant | Definition | Source |
 | --- | --- | --- |
@@ -42,6 +50,9 @@ internal batch size. HTTP duration includes network, server queue and inference.
 | New run directory, event stream and terminal receipt | `cli.main` |
 
 ## Evidence routing
+
+- `RESULTS.md`: canonical human-readable gates, verdict and claim boundary.
+- `results/single_5090_20260927.json`: sanitized machine-readable aggregate.
 
 - `tests/test_runtime.py`: policies, independent limits, absent no-op grading,
   warmup/cache behavior and actual process death/replacement after timeout.
