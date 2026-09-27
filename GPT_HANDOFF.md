@@ -1,45 +1,46 @@
 # Incremental review handoff
 
-- Review base: `56a36ee7e3c81a364fec9e59d9af82ed9a1e371a`
-- Evidence head: `2800b9d202355459320ff7693b847f2966d319cf`
+- Review base: `2800b9d202355459320ff7693b847f2966d319cf`
+- Evidence head: `bb4913035f2cbcecac63172b0f6bbff7cb04469a`
 - This handoff is a later metadata-only commit; review the evidence head above.
 - Validation date: 2026-09-27.
 
-## Decision-relevant change
+## What changed
 
-The LiveCodeBench v2 formal experiment completed three paired comparisons. All
-six arms completed 219/219 trajectories. AsyncRoll's paired throughput changes
-relative to FIFO were +1.38%, -2.90%, and +0.40%; paired mean -0.37%, with a
-descriptive 95% t interval of [-5.94%, +5.20%]. The result does not support an
-AsyncRoll throughput improvement under this configuration.
+V3 is a code-only bounded-concurrency optimization; it has not been deployed.
+The operating point is fixed at 8 active trajectories, 4 client model requests,
+2 CPU workers and vLLM `max_num_seqs=8`. There is no concurrency sweep.
 
-Mean exact pass rate was 28.46% for FIFO and 29.07% for AsyncRoll. This +0.61
-percentage-point descriptive difference is not a quality-improvement claim.
+AsyncRoll now predicts per-job evaluator wall time with an online ridge model
+using pre-execution test count, test-input bytes, generated-code bytes and
+initial/repair status. It applies soft aging and a 30-second hard starvation
+deadline. Metrics now report eligible decisions, activation rate, reorder count,
+decision reasons, feature diversity and predicted/actual log-time correlation.
 
-## Protocol boundary
+An activation arm must demonstrate real reordering and positive prediction
+correlation before the unchanged three-pair FIFO/AsyncRoll comparison runs.
+FIFO and AsyncRoll use identical tasks and resource limits. A 20% gain is a
+target, not a result. V1/v2 receipts and their negative conclusions are intact.
 
-The v1 screen stopped because joint vLLM/NVML coverage was 76.07% against an
-80% gate, although the four direct CPU-opportunity checks passed. At the user's
-explicit direction, v2 recorded telemetry coverage but removed it as a stop
-condition. The v1 receipt remains unchanged. Interpret the comparison only
-under the documented v2 amendment.
+## Verification
+
+- 67 tests and 8 subtests passed locally.
+- Python compilation passed for the runtime, scheduler, metrics, CLI and runner.
+- Staged content passed whitespace and sensitive-identifier scans.
+- No server experiment was launched.
 
 ## Minimal reading order
 
-1. `RESULTS.md`: result, uncertainty, and claim boundary.
-2. `results/livecodebench_20260927_v4/README.md`: compact comparison table.
-3. `results/livecodebench_20260927_v4/experiment.json`: canonical aggregate.
-4. `PROTOCOL_LIVECODEBENCH.md`: workload and protocol amendment.
-5. `src/asyncroll/runtime.py` and `scripts/run_lcb_single_gpu.py`: runtime and gated runner.
-
-Large hidden tests, model files, per-request logs, and machine-specific launch
-receipts are intentionally excluded. The earlier ToolMATH negative result is a
-separate frozen workload and is unchanged.
+1. `PROTOCOL_LIVECODEBENCH.md`: v3 boundary and activation gate.
+2. `experiments/livecodebench_bounded_8x4.json`: frozen operating point.
+3. `src/asyncroll/scheduling.py`: predictor and selection rule.
+4. `src/asyncroll/metrics.py`: activation and prediction diagnostics.
+5. `scripts/run_lcb_bounded_single_gpu.py`: qualification-to-comparison runner.
+6. `RESULTS.md`: unchanged completed v1/v2 evidence.
 
 ## Reviewer questions
 
-1. Does the paired result justify the no-speedup conclusion without implying
-   equivalence outside the interval supported by three pairs?
-2. Is the post-screen v2 amendment disclosed clearly enough?
-3. Do the published aggregates preserve the distinction between throughput and
-   pass-rate observations?
+1. Are all predictor features available before execution and free of expected
+   test outputs?
+2. Does the activation gate prevent another FIFO-equivalent comparison?
+3. Does soft aging preserve useful reorder decisions while bounding starvation?
