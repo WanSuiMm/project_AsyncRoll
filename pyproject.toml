@@ -4,16 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asyncroll"
-version = "0.2.0"
+version = "0.3.0"
 description = "Measured CPU/model scheduling for tool-using agents"
 requires-python = ">=3.10"
 dependencies = ["httpx>=0.27,<1", "prometheus-client>=0.14,<1"]
 
 [project.optional-dependencies]
 telemetry = ["nvidia-ml-py>=12"]
+profiling = ["nvtx>=0.2,<1"]
+figures = ["matplotlib>=3.7,<4"]
 
 [project.scripts]
 asyncroll = "asyncroll.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+asyncroll = ["model_files.json"]

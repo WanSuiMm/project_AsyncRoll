@@ -3,15 +3,18 @@
 AsyncRoll investigates whether CPU scheduling can keep an inference engine fed
 while agent trajectories alternate between model requests and Python tools.
 The current version provides an inference-only runtime, bounded concurrency,
-warm workers, phase timing, and a resource timeline. **There is no live vLLM
+warm workers, a pressure-aware CPU policy, NVTX instrumentation and a resource
+timeline. One fixed-config experiment compares FIFO with AsyncRoll on a
+dedicated rented RTX 5090. **There is no live vLLM
 performance result or GPU-bubble recovery claim yet.**
 
 ## Start here
 
 1. [PROJECT.md](PROJECT.md): question, scope and first experiment stop conditions.
-2. [GPT_CONTEXT.md](GPT_CONTEXT.md): variants, implementation map and evidence.
-3. [MEASUREMENT.md](MEASUREMENT.md): timing definitions, telemetry and confounders.
-4. [runtime.py](src/asyncroll/runtime.py): execution and measurement flow.
+2. [PROTOCOL.md](PROTOCOL.md): single experiment, estimand and stop rules.
+3. [docs/SINGLE_GPU.md](docs/SINGLE_GPU.md): rental setup, plan, staged execution and Nsight.
+4. [MEASUREMENT.md](MEASUREMENT.md): metric definitions and confounders.
+5. [GPT_CONTEXT.md](GPT_CONTEXT.md): implementation map and evidence.
 
 ## Local check
 
@@ -37,6 +40,14 @@ coverage before interpreting it.
 | `--max-inflight-model-requests` | Client model calls; not vLLM batch size |
 | `--cpu-workers` | Persistent Python tool/grading processes |
 
+The three limits remain independent knobs, held fixed for the main comparison.
+`asyncroll` checks queued + inflight client model requests at each CPU dispatch.
+Below `--starvation-threshold` (default 1), it favors tool continuations with
+shorter previously observed execution time. Durations are per-callable EWMA;
+unknown tools use the median history and ties use FIFO. After
+`--aging-seconds` (default 1), the oldest aged job wins. This is non-preemptive:
+the aging threshold is not a hard completion deadline. Every choice is logged.
+
 `sync` admits one trajectory at a time. `fifo` uses CPU arrival order.
 `tool_first` gives queued tool calls priority over queued terminal grading.
 It is non-preemptive and does not predict remaining tool duration or inspect GPU
@@ -46,8 +57,9 @@ and `--gpu-slots` flag remain compatibility aliases.
 
 ## Live model and ToolMATH
 
-Serve a compatible model using vLLM separately. Model acquisition and serving
-are outside this repository. The backend uses a persistent HTTPX AsyncClient
+The [single-GPU runner](docs/SINGLE_GPU.md) owns a vLLM server per arm and records
+its actual backend and graph evidence. Manual existing-server runs below remain
+available for diagnostics. The backend uses a persistent HTTPX AsyncClient
 and requests JSON-schema output by default. Schema compliance is not proof
 that [Qwen2.5-Math-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct)
 can use this action protocol correctly; native TIR qualification remains open.
@@ -82,3 +94,17 @@ its replacement is preloaded and recovery overhead remains in the measured
 run. This is not a security sandbox or a descendant-process cleanup mechanism.
 
 See [MEASUREMENT.md](MEASUREMENT.md) before using any throughput number.
+
+## One result figure
+
+After an unprofiled comparison completes:
+
+```bash
+python -m pip install -e '.[figures]'
+python -m asyncroll.report --comparison runs/comparison/comparison.json --output runs/report --figure
+```
+
+This produces a compact report and one three-panel PDF/PNG: completions per
+allocated GPU-hour, sampled model starvation, and client + tool-worker CPU cost
+per completion. Lines connect independent paired full runs. Missing values stay
+unknown; correctness and a causal recovery claim need additional evidence.

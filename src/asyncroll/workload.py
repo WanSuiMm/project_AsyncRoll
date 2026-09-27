@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,7 +69,9 @@ def convert_toolmath(source: Path, functions_dir: Path, destination: Path,
     A ToolMATH row specifies one tool and its source problem. It does not supply
     a verified multi-turn trajectory or an unambiguous final-answer label.
     """
-    rows = json.loads(source.read_text(encoding="utf-8"))
+    source_bytes = source.read_bytes()
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    rows = json.loads(source_bytes.decode("utf-8"))
     if not isinstance(rows, list):
         raise ValueError("Expected a ToolMATH JSON array")
     if limit is not None and limit < 1:
@@ -95,7 +98,8 @@ def convert_toolmath(source: Path, functions_dir: Path, destination: Path,
                     "implementation": implementation.relative_to(functions_dir).as_posix(),
                 }],
                 "metadata": {**{k: row[k] for k in ("difficulty", "category", "level", "type")
-                                 if k in row}, "source_index": index, "sample_seed": seed},
+                                 if k in row}, "source_index": index, "sample_seed": seed,
+                             "source_sha256": source_sha256},
             }
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
     return len(selected)

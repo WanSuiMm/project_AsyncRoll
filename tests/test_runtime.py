@@ -2,10 +2,12 @@ import asyncio
 import json
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 from asyncroll.model import Generation, ScriptedBackend, parse_action
 from asyncroll.runtime import CPUQueue, Recorder, run
+from asyncroll.profiling import Profiler
 from asyncroll.workload import Problem, load_jsonl
 
 
@@ -13,9 +15,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RuntimeTest(unittest.TestCase):
+    def test_recorder_correlates_overlapping_nvtx_requests_with_numeric_ids(self):
+        nvtx = Mock()
+        nvtx.start_range.side_effect = [object() for _ in range(4)]
+        with patch("asyncroll.profiling.import_module", return_value=nvtx):
+            profiler = Profiler(True)
+            recorder = Recorder(profiler=profiler)
+            for identity in ("a:0", "b:0"):
+                recorder.emit(identity, "model_enqueued", request_id=identity)
+                recorder.emit(identity, "model_started", request_id=identity)
+            recorder.emit("a", "model_finished", request_id="a:0")
+            recorder.emit("b", "model_failed", request_id="b:0")
+            profiler.close()
+        self.assertEqual(nvtx.end_range.call_count, 4)
+        self.assertEqual([c.kwargs["payload"] for c in nvtx.start_range.call_args_list], [0, 0, 2, 2])
+        self.assertFalse(recorder.spans)
+
     def test_smoke_all_policies(self):
         problems = load_jsonl(ROOT / "examples" / "smoke.jsonl")
-        for policy in ("sync", "fifo", "tool_first"):
+        for policy in ("sync", "fifo", "tool_first", "asyncroll"):
             with self.subTest(policy=policy):
                 summary, events = asyncio.run(run(
                     problems, ScriptedBackend(), policy,
@@ -24,6 +42,9 @@ class RuntimeTest(unittest.TestCase):
                 self.assertEqual(summary["total_tool_calls"], 2)
                 self.assertEqual(summary["exact_accuracy"], 1)
                 self.assertTrue(any(e["event"] == "cpu_started" for e in events))
+                self.assertTrue(summary["resource_metrics"]["cpu_cost_complete"])
+                self.assertGreaterEqual(summary["resource_metrics"]["cpu_core_seconds"], 0)
+                self.assertIsNone(summary["resource_metrics"]["completed_per_gpu_hour"])
 
     def test_bad_action_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -104,6 +125,15 @@ class RuntimeTest(unittest.TestCase):
                 self.assertEqual(cpu.workers[0].generation, 2)
             self.assertTrue(any(e["event"] == "worker_restarting" for e in recorder.events))
         asyncio.run(exercise())
+
+    def test_killed_worker_does_not_produce_a_complete_cpu_cost(self):
+        problem = Problem("timeout", "sleep", [{"name": "sleep_ms"}], script=[
+            {"type": "tool", "name": "sleep_ms", "arguments": {"milliseconds": 1000}}])
+        summary, _ = asyncio.run(run([problem], ScriptedBackend(), "asyncroll",
+                                     cpu_workers=1, warmup_requests=0, tool_timeout=0.02))
+        self.assertEqual(summary["failed"], 1)
+        self.assertFalse(summary["resource_metrics"]["cpu_cost_complete"])
+        self.assertIsNone(summary["resource_metrics"]["cpu_core_seconds"])
 
     def test_warm_workers_cache_modules_and_exclude_startup(self):
         with tempfile.TemporaryDirectory() as directory:

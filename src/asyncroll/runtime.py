@@ -11,6 +11,9 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .model import ModelBackend, initial_messages
+from .metrics import resource_metrics
+from .profiling import Profiler
+from .scheduling import Scheduler
 from .workers import Worker
 from .workload import Problem
 
@@ -21,9 +24,42 @@ class Recorder:
     events: list[dict[str, Any]] = field(default_factory=list)
     sink: Callable[[dict[str, Any]], None] | None = None
     recording_seconds: float = 0.0
+    profiler: Any = None
+    model_outstanding: set[str] = field(default_factory=set)
+    spans: dict[tuple[str, Any], Any] = field(default_factory=dict)
+    nvtx_requests: dict[str, int] = field(default_factory=dict)
 
     def emit(self, problem_id: str, event: str, **values: Any) -> None:
         started = time.perf_counter()
+        request_id = values.get("request_id")
+        if event == "model_enqueued":
+            self.model_outstanding.add(request_id)
+        elif event in {"model_finished", "model_failed"}:
+            self.model_outstanding.discard(request_id)
+        if self.profiler and self.profiler.enabled:
+            if event == "model_enqueued":
+                self.nvtx_requests[request_id] = len(self.events)
+            identity = self.nvtx_requests.get(request_id) if request_id is not None else values.get("job_id")
+            if identity is not None:
+                values["nvtx_identity"] = identity
+            pairs = {
+                "measurement_started": (None, "RUN_MEASUREMENT"),
+                "measurement_finished": ("RUN_MEASUREMENT", None),
+                "model_enqueued": (None, "MODEL_WAIT"),
+                "model_started": ("MODEL_WAIT", "MODEL_REQUEST"),
+                "model_finished": ("MODEL_REQUEST", None),
+                "model_failed": ("MODEL_REQUEST", None),
+                "cpu_enqueued": (None, "TOOL_QUEUE" if values.get("kind") == "tool" else "GRADE_QUEUE"),
+                "cpu_started": ("TOOL_QUEUE" if values.get("kind") == "tool" else "GRADE_QUEUE", None),
+            }
+            if event in pairs:
+                before, after = pairs[event]
+                if before:
+                    self.profiler.end(self.spans.pop((before, identity), None))
+                if after:
+                    self.spans[(after, identity)] = self.profiler.start(after, identity)
+            if event in {"model_finished", "model_failed"}:
+                self.nvtx_requests.pop(request_id, None)
         record = {"t": started - self.start,
                   "id": problem_id, "event": event, **values}
         self.events.append(record)
@@ -45,10 +81,15 @@ class CPUJob:
 class CPUQueue:
     def __init__(self, workers: int, policy: str, recorder: Recorder,
                  tools: list[dict[str, Any]] | None = None,
-                 timeout: float = 60, startup_timeout: float = 120):
-        self.queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+                 timeout: float = 60, startup_timeout: float = 120,
+                 starvation_threshold: int = 1, aging_seconds: float = 1,
+                 nvtx_enabled: bool = False):
+        self.pending: list[CPUJob] = []
+        self.available = asyncio.Event()
+        self.closing = False
         self.policy, self.recorder, self.timeout = policy, recorder, timeout
-        self.workers = [Worker(i, tools or [], startup_timeout) for i in range(workers)]
+        self.scheduler = Scheduler(policy, starvation_threshold, aging_seconds)
+        self.workers = [Worker(i, tools or [], startup_timeout, nvtx_enabled=nvtx_enabled) for i in range(workers)]
         self.sequence = 0
         self.tasks: list[asyncio.Task] = []
 
@@ -63,9 +104,8 @@ class CPUQueue:
         return self
 
     async def __aexit__(self, *_: object) -> None:
-        for _ in self.tasks:
-            self.queue.put_nowait((2, self.sequence, None))
-            self.sequence += 1
+        self.closing = True
+        self.available.set()
         try:
             await asyncio.gather(*self.tasks)
         finally:
@@ -84,11 +124,11 @@ class CPUQueue:
         job = CPUJob(problem_id, self.sequence, turn,
                      dict(kind=kind, tool=tool, arguments=arguments,
                           answer=answer, reference=reference), future, time.perf_counter())
-        priority = 0 if self.policy == "tool_first" and kind == "tool" else 1
         self.sequence += 1
         self.recorder.emit(problem_id, "cpu_enqueued", **self._fields(job))
         job.enqueued = time.perf_counter()
-        self.queue.put_nowait((priority, job.job_id, job))
+        self.pending.append(job)
+        self.available.set()
         return await future
 
     @staticmethod
@@ -98,10 +138,15 @@ class CPUQueue:
 
     async def _worker(self, worker: Worker) -> None:
         while True:
-            _, _, job = await self.queue.get()
-            if job is None:
-                self.queue.task_done()
-                return
+            while not self.pending:
+                if self.closing:
+                    return
+                self.available.clear()
+                await self.available.wait()
+            job, decision = self.scheduler.select(self.pending, time.perf_counter(),
+                                                  len(self.recorder.model_outstanding))
+            self.pending.remove(job)
+            self.recorder.emit(job.problem_id, "cpu_selected", **self._fields(job), **decision)
             fields = {**self._fields(job), "worker_id": worker.worker_id}
             dispatched = None
             details: dict[str, Any] = {}
@@ -113,7 +158,7 @@ class CPUQueue:
                                    worker_generation=worker.generation,
                                    queue_seconds=time.perf_counter() - job.enqueued)
                 dispatched = time.perf_counter()
-                reply = await worker.execute(job.payload, self.timeout)
+                reply = await worker.execute({**job.payload, "nvtx_identity": job.job_id}, self.timeout)
                 dispatch_seconds = time.perf_counter() - dispatched
                 details = {k: v for k, v in reply.items() if k not in {"result", "error"}}
                 for name in ("worker_started", "worker_finished"):
@@ -122,6 +167,8 @@ class CPUQueue:
                 details["dispatch_seconds"] = dispatch_seconds
                 details["harness_seconds"] = max(0.0, dispatch_seconds
                     - details.get("execute_seconds", 0) - details.get("serialization_seconds", 0))
+                if "execute_seconds" in details:
+                    self.scheduler.observe(job.payload, details["execute_seconds"])
                 if "error" in reply:
                     raise RuntimeError(reply["error"])
                 self.recorder.emit(job.problem_id, "cpu_finished", **fields, **details)
@@ -138,8 +185,6 @@ class CPUQueue:
                     # coroutine: consumers may clear its suspended frames.
                     error_type = TimeoutError if isinstance(exc, TimeoutError) else RuntimeError
                     job.future.set_exception(error_type(str(exc)))
-            finally:
-                self.queue.task_done()
 
 
 async def _trajectory(problem: Problem, backend: ModelBackend,
@@ -279,7 +324,9 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
               warmup_requests: int = 2, tool_timeout: float = 60,
               worker_startup_timeout: float = 120, telemetry: Any = None,
               event_sink: Callable[[dict], None] | None = None,
-              gpu_slots: int | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+              gpu_slots: int | None = None, starvation_threshold: int = 1,
+              aging_seconds: float = 1.0, nvtx_enabled: bool = False,
+              dedicated_gpu: bool = False) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Owns backend/telemetry lifecycle; excludes warmup and shutdown from timing."""
     requested_policy = policy
     if policy == "gpu_first":
@@ -288,13 +335,14 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
     if gpu_slots is not None:
         warnings.warn("gpu_slots is now max_inflight_model_requests", FutureWarning)
         max_inflight_model_requests = gpu_slots
-    if policy not in {"sync", "fifo", "tool_first"}:
+    if policy not in {"sync", "fifo", "tool_first", "asyncroll"}:
         raise ValueError(f"Unknown policy {policy}")
     if not problems or len({p.id for p in problems}) != len(problems):
         raise ValueError("A nonempty workload with unique IDs is required")
     if min(cpu_workers, max_inflight_model_requests, max_turns,
            max_active_trajectories, tool_timeout, worker_startup_timeout) <= 0 or warmup_requests < 0:
         raise ValueError("Limits/timeouts must be positive; warmup count must be nonnegative")
+    profiler = None
     recorder = Recorder(sink=event_sink)
     setup_started = time.perf_counter()
     tools = list({(t.get("implementation"), t["name"]): t for p in problems for t in p.tools}.values())
@@ -302,8 +350,11 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
     stop = asyncio.Event()
     sampler = None
     try:
+        profiler = Profiler(nvtx_enabled)
+        recorder.profiler = profiler
         async with CPUQueue(cpu_workers, policy, recorder, tools, tool_timeout,
-                            worker_startup_timeout) as cpu:
+                            worker_startup_timeout, starvation_threshold, aging_seconds,
+                            nvtx_enabled) as cpu:
             worker_warmup_seconds = time.perf_counter() - setup_started
             warm_started = time.perf_counter()
             # Bounded batches; never create a task for every trajectory at once.
@@ -313,6 +364,9 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
                     for i in range(offset, min(warmup_requests, offset+max_inflight_model_requests))))
             model_warmup_seconds = time.perf_counter() - warm_started
             telemetry_probe = await telemetry.prepare() if telemetry else None
+            worker_before = await asyncio.gather(*(w.cpu_time() for w in cpu.workers))
+            generations = [w.generation for w in cpu.workers]
+            parent_cpu_before = time.process_time()
             recorder.start = time.perf_counter()
             recorder.emit("__run__", "measurement_started")
             if telemetry:
@@ -334,11 +388,32 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
                         task.cancel()
                 await asyncio.gather(*consumers, return_exceptions=True)
                 elapsed = time.perf_counter() - recorder.start
+                parent_cpu_seconds = time.process_time() - parent_cpu_before
                 recorder.emit("__run__", "measurement_finished", elapsed_seconds=elapsed)
                 stop.set()
                 if sampler:
                     await sampler
+            worker_after = await asyncio.gather(*(w.cpu_time() for w in cpu.workers), return_exceptions=True)
+            cpu_cost_complete = all(w.generation == g and isinstance(end, (float, int))
+                                    for w, g, end in zip(cpu.workers, generations, worker_after))
+            worker_cpu_seconds = sum(end - start for start, end in zip(worker_before, worker_after)) if cpu_cost_complete else None
         summary = summarize(results, recorder, elapsed)
+        resources = resource_metrics(recorder.events, elapsed, summary["completed"], dedicated_gpu,
+                                     max_sample_gap=3 * getattr(telemetry, "interval", 0.2))
+        cpu_total = parent_cpu_seconds + worker_cpu_seconds if cpu_cost_complete else None
+        resources.update(
+            cpu_cost_complete=cpu_cost_complete,
+            parent_cpu_core_seconds=parent_cpu_seconds,
+            worker_cpu_core_seconds=worker_cpu_seconds,
+            cpu_core_seconds=cpu_total,
+            cpu_core_seconds_per_completed_trajectory=cpu_total / summary["completed"] if cpu_cost_complete and summary["completed"] else None,
+            cpu_cost_scope="Client process and persistent tool workers; excludes vLLM/server, "
+                           "other processes and startup. Worker IPC boundary skew is included; "
+                           "cost is unknown if a worker was killed/replaced.")
+        summary["resource_metrics"] = resources
+        summary["scheduler"] = {"starvation_threshold": starvation_threshold, "aging_seconds": aging_seconds,
+                                "estimator": "Per-tool observed execution EWMA alpha=0.5; unknown=median history; reset each run"}
+        summary["nvtx_enabled"] = nvtx_enabled
         samples = [e for e in recorder.events if e["event"] == "resource_sample"]
         summary.update(policy=policy, requested_policy=requested_policy,
                        cpu_workers=cpu_workers, max_inflight_model_requests=max_inflight_model_requests,
@@ -356,6 +431,8 @@ async def run(problems: list[Problem], backend: ModelBackend, policy: str,
         return summary, recorder.events
     finally:
         stop.set()
+        if profiler:
+            profiler.close()
         if telemetry:
             await telemetry.close()
         close = getattr(backend, "aclose", None)

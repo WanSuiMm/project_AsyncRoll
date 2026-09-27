@@ -80,12 +80,14 @@ class VLLMBackend:
     def __init__(self, endpoint: str, model: str, timeout: float = 120,
                  max_connections: int = 4, max_tokens: int = 512,
                  structured_output: bool = True,
-                 transport: httpx.AsyncBaseTransport | None = None):
+                 transport: httpx.AsyncBaseTransport | None = None,
+                 seed: int = 0):
         if timeout <= 0 or max_connections < 1 or max_tokens < 1:
             raise ValueError("HTTP timeout, connections and max tokens must be positive")
         self.endpoint = endpoint.rstrip("/") + "/v1/chat/completions"
         self.model, self.timeout = model, timeout
         self.max_tokens, self.structured_output = max_tokens, structured_output
+        self.seed = seed
         self.client = httpx.AsyncClient(
             timeout=timeout, transport=transport,
             limits=httpx.Limits(max_connections=max_connections,
@@ -97,7 +99,7 @@ class VLLMBackend:
     async def generate(self, problem: Problem, messages: list[dict[str, str]],
                        turn: int) -> Generation:
         payload = {"model": self.model, "messages": messages,
-                   "temperature": 0, "max_tokens": self.max_tokens}
+                   "temperature": 0, "max_tokens": self.max_tokens, "seed": self.seed}
         if self.structured_output:
             payload["response_format"] = {"type": "json_schema", "json_schema": {
                 "name": "agent_action", "schema": action_schema(problem)}}

@@ -34,7 +34,7 @@ def main() -> None:
     bench.add_argument("--workload", type=Path, required=True)
     bench.add_argument("--tool-root", type=Path)
     bench.add_argument("--output", type=Path, required=True, help="New directory; must not exist")
-    bench.add_argument("--policy", choices=["sync", "fifo", "tool_first", "gpu_first"], required=True)
+    bench.add_argument("--policy", choices=["sync", "fifo", "tool_first", "gpu_first", "asyncroll"], required=True)
     bench.add_argument("--backend", choices=["scripted", "vllm"], required=True)
     bench.add_argument("--model")
     bench.add_argument("--endpoint", default="http://localhost:8000")
@@ -54,6 +54,11 @@ def main() -> None:
     bench.add_argument("--no-telemetry", action="store_true")
     bench.add_argument("--nvml-device", type=int, help="Physical NVML index on THIS host")
     bench.add_argument("--telemetry-interval", type=float, default=0.2)
+    bench.add_argument("--seed", type=int, default=0, help="Model decoding seed; not a determinism guarantee")
+    bench.add_argument("--starvation-threshold", type=int, default=1)
+    bench.add_argument("--aging-seconds", type=float, default=1.0)
+    bench.add_argument("--nvtx", action="store_true", help="Diagnostic Nsight ranges; requires profiling extra")
+    bench.add_argument("--dedicated-gpu", action="store_true", help="Declare one dedicated GPU for measured allocation-hour rate")
     args = parser.parse_args()
     if args.command == "convert-toolmath":
         count = convert_toolmath(args.source, args.functions_dir, args.output, args.limit, args.seed)
@@ -61,9 +66,11 @@ def main() -> None:
         return
     if args.backend == "vllm" and not args.model:
         parser.error("--model is required with --backend vllm")
+    if args.dedicated_gpu and args.backend != "vllm":
+        parser.error("--dedicated-gpu requires a real vLLM backend")
     if min(args.cpu_workers, args.max_active_trajectories, args.max_inflight_model_requests,
            args.max_turns, args.max_tokens, args.tool_timeout, args.worker_startup_timeout,
-           args.request_timeout, args.telemetry_interval) <= 0 or args.warmup_requests < 0:
+           args.request_timeout, args.telemetry_interval, args.starvation_threshold, args.aging_seconds) <= 0 or args.warmup_requests < 0:
         parser.error("Limits/timeouts must be positive; warmup count must be nonnegative")
     if args.no_telemetry and (args.metrics_url or args.nvml_device is not None):
         parser.error("Telemetry sources conflict with --no-telemetry")
@@ -94,7 +101,7 @@ def main() -> None:
     try:
         backend = (ScriptedBackend() if args.backend == "scripted" else VLLMBackend(
             args.endpoint, args.model, args.request_timeout, args.max_inflight_model_requests,
-            args.max_tokens, not args.no_structured_output))
+            args.max_tokens, not args.no_structured_output, seed=args.seed))
         telemetry = (Telemetry(metrics_url, args.model, args.nvml_device, args.telemetry_interval)
                      if not args.no_telemetry and (metrics_url or args.nvml_device is not None) else None)
         with (args.output / "events.jsonl").open("w", encoding="utf-8", buffering=1) as stream:
@@ -112,7 +119,9 @@ def main() -> None:
                 max_turns=args.max_turns, max_active_trajectories=args.max_active_trajectories,
                 warmup_requests=args.warmup_requests, tool_timeout=args.tool_timeout,
                 worker_startup_timeout=args.worker_startup_timeout, telemetry=telemetry,
-                event_sink=record))
+                event_sink=record, starvation_threshold=args.starvation_threshold,
+                aging_seconds=args.aging_seconds, nvtx_enabled=args.nvtx,
+                dedicated_gpu=args.dedicated_gpu))
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         write_timeline(events, args.output)
         manifest["status"] = "complete"

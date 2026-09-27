@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "protocol_id": "asyncroll-single-5090-qwen-toolmath-v1",
+  "model": {
+    "repository": "Qwen/Qwen2.5-Math-7B-Instruct",
+    "revision": "ef9926d75ab1d54532f6a30dd5e760355eb9aa4d",
+    "served_name": "asyncroll-math"
+  },
+  "workload": {
+    "repository": "CHJ0417/ToolMATH",
+    "revision": "f439a4af8dddbf061246ea9d68f6e977b18cbece",
+    "source_sha256": "77cde6c200ff8dd1c4b89e24c691db8f4503b36bf9bf4a2115d703515d00866e",
+    "comparison_tasks": 32,
+    "qualification_tasks": 8,
+    "selection_seed": 20260927
+  },
+  "hardware": {
+    "gpu_index": 0,
+    "required_name_tokens": ["RTX", "5090"],
+    "max_preexisting_memory_mib": 512
+  },
+  "seed": {
+    "base": 20260927,
+    "qualification_offset": 1000
+  },
+  "comparison": {
+    "replicates": 3,
+    "orders": [
+      ["fifo", "asyncroll"],
+      ["asyncroll", "fifo"],
+      ["fifo", "asyncroll"]
+    ]
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "dtype": "bfloat16",
+    "tensor_parallel_size": 1,
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 4096,
+    "max_num_seqs": 16,
+    "max_num_batched_tokens": 8192,
+    "prefix_caching": true,
+    "chunked_prefill": true
+  },
+  "runtime": {
+    "cpu_workers": 2,
+    "max_active_trajectories": 16,
+    "max_inflight_model_requests": 4,
+    "max_turns": 8,
+    "max_tokens": 512,
+    "warmup_requests": 8,
+    "tool_timeout_seconds": 60,
+    "worker_startup_timeout_seconds": 120,
+    "request_timeout_seconds": 120,
+    "starvation_threshold": 1,
+    "aging_seconds": 1,
+    "telemetry_interval_seconds": 0.2
+  },
+  "deadlines": {
+    "server_startup_seconds": 1800,
+    "arm_seconds": 3600,
+    "server_shutdown_seconds": 30
+  },
+  "qualification_gate": {
+    "require_all_completed": true,
+    "require_all_action_valid": true,
+    "require_tool_call_each_task": true
+  },
+  "opportunity_gate": {
+    "minimum_cpu_related_idle_candidate_seconds": 0.001,
+    "minimum_joint_observation_coverage_fraction": 0.8,
+    "minimum_client_cpu_blocked_seconds": 0.001,
+    "minimum_cpu_max_queue_depth": 2,
+    "minimum_tool_queue_p95_seconds": 0.005
+  }
+}

@@ -87,3 +87,61 @@ scalar and does not subtract HTTP time to guess server inference time.
 HTTP pooling follows [HTTPX async client guidance](https://www.python-httpx.org/async/).
 Schema output follows [vLLM structured output guidance](https://docs.vllm.ai/en/latest/features/structured_outputs/);
 argument correctness and Qwen native TIR compatibility still need real qualification.
+
+## Single-GPU endpoints
+
+`resource_metrics` reports the following:
+
+| Field | Definition |
+| --- | --- |
+| `completed_per_gpu_hour` | Completions / timed wall hours, only when one dedicated allocated GPU is explicitly declared |
+| `client_cpu_blocked_seconds` | Exact parent-event intervals with active trajectories, pending tool continuations and zero queued/inflight model requests |
+| `model_starvation_seconds` | Those client intervals intersected with consecutive observations of zero vLLM running/waiting requests |
+| `cpu_related_idle_candidate_seconds` | Same intersection, also requiring both endpoint NVML utilizations <= 10 percent |
+| `server_observation_coverage_seconds` | Consecutive valid server-sample intervals admitted to the estimate |
+| `joint_observation_coverage_seconds` | Admitted intervals with valid server and NVML samples |
+| `cpu_core_seconds` | Client process CPU delta + persistent worker process CPU deltas |
+| `cpu_core_seconds_per_completed_trajectory` | That measured CPU cost / completions; failed work stays in the numerator |
+
+Interpolation admits intervals only when adjacent samples are no farther apart
+than three configured collection periods. It excludes scrape windows and does
+not fill leading/trailing gaps. Missing series yield null, not zero. Valid zero
+candidate time can still miss short gaps; a positive estimate is not proof that
+the GPU was continuously idle between samples. Telemetry refresh cadence and
+collection cadence differ. Record coverage alongside every reported estimate.
+
+CPU accounting uses `time.process_time()` around the measured window for the
+client and IPC snapshots of each worker's process clock. This counts actual
+scheduled core time (including worker IPC/serialization), not worker wall-time
+multiplied by worker count. Snapshot boundary skew is included. Startup/preload
+is excluded. A killed or replaced worker invalidates the full CPU total; callable
+CPU subtotals remain diagnostic. **vLLM/server CPU and other processes are not
+included.** This field must be labelled client + tool CPU cost, not machine total.
+
+`--dedicated-gpu` is a declaration on the low-level run CLI. The experiment runner
+checks the selected physical GPU and foreign compute processes; no software can
+guarantee a future tenant/job will not intrude. GPU allocation time excludes
+model loading, warmup, artifact export and shutdown, so it is not rental cost.
+
+## Policy evidence and profiling
+
+Every `cpu_selected` event records model supply, queue depth, predicted cost,
+whether the estimate is known, the FIFO-oldest job, decision reason and whether
+selection reordered work. Timing both policies includes the same observer and
+event overhead. The estimator does not learn from future work or a different
+policy arm. If most tools are unseen or no decision changes, report it.
+
+NVTX is optional and off for the throughput series. `Profiler` uses explicit
+start/end handles so overlapping asyncio requests do not corrupt thread-local
+range stacks. Stable messages are `MODEL_WAIT`, `MODEL_REQUEST`, `TOOL_QUEUE`
+and `TOOL_EXEC` (plus grading where labels exist). Numeric payloads map to
+`nvtx_identity` in parent events; worker payloads equal CPU job IDs. Worker
+`TOOL_EXEC` spans bracket actual callables. Requests still mark HTTP, not kernels.
+`RUN_MEASUREMENT` marks the timed client window, excluding warmup and teardown.
+
+Follow [the rental guide](docs/SINGLE_GPU.md) to launch Nsight around both vLLM
+and AsyncRoll descendants. Profiling only the HTTP client cannot reveal server
+CUDA execution. Preserve actual selected attention backend, compilation and
+completed graph-capture log evidence. Requested flags alone are insufficient.
+Relevant references: [NVTX process ranges](https://nvidia.github.io/NVTX/python/reference.html)
+and [Nsight Systems CLI](https://docs.nvidia.com/nsight-systems/UserGuide/).

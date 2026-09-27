@@ -1,4 +1,5 @@
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,5 +25,6 @@ class WorkloadTest(unittest.TestCase):
             self.assertNotIn(str(functions), first)
             problems = load_jsonl(output, tool_root=functions)
             self.assertEqual(problems[0].metadata["category"], "algebra")
+            self.assertEqual(problems[0].metadata["source_sha256"], hashlib.sha256(source.read_bytes()).hexdigest())
             self.assertEqual(Path(problems[0].tools[0]["implementation"]), functions / "f.py")
             self.assertNotEqual([p.metadata["source_index"] for p in problems], list(range(5)))

@@ -13,11 +13,15 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from .profiling import Profiler
 from .tools import call_tool, grade, load_tool
 
 
-def _serve(connection: Any, tools: list[dict[str, Any]]) -> None:
+def _serve(connection: Any, tools: list[dict[str, Any]],
+           nvtx_enabled: bool = False) -> None:
+    profiler: Profiler | None = None
     try:
+        profiler = Profiler(enabled=nvtx_enabled)
         for tool in tools:
             if "implementation" in tool:
                 load_tool(tool)
@@ -28,11 +32,19 @@ def _serve(connection: Any, tools: list[dict[str, Any]]) -> None:
             job = connection.recv()
             if job is None:
                 return
+            if job.get("_worker_command") == "cpu_time":
+                connection.send({"worker_cpu_time_seconds": time.process_time()})
+                continue
             started, cpu_started = time.perf_counter(), time.process_time()
+            label = "TOOL_EXEC" if job["kind"] == "tool" else "GRADE_EXEC"
             try:
-                value = (call_tool(job["tool"], job["arguments"])
-                         if job["kind"] == "tool"
-                         else grade(job["answer"], job["reference"]))
+                range_handle = profiler.start(label, job.get("nvtx_identity"))
+                try:
+                    value = (call_tool(job["tool"], job["arguments"])
+                             if job["kind"] == "tool"
+                             else grade(job["answer"], job["reference"]))
+                finally:
+                    profiler.end(range_handle)
                 executed = time.perf_counter()
                 cpu_seconds = time.process_time() - cpu_started
                 result = (json.dumps(value, ensure_ascii=False, default=str)
@@ -51,14 +63,19 @@ def _serve(connection: Any, tools: list[dict[str, Any]]) -> None:
     except BaseException as exc:
         connection.send({"error": f"Worker startup: {type(exc).__name__}: {exc}"})
     finally:
-        connection.close()
+        try:
+            if profiler is not None:
+                profiler.close()
+        finally:
+            connection.close()
 
 
 class Worker:
     def __init__(self, worker_id: int, tools: list[dict[str, Any]],
-                 startup_timeout: float = 120):
+                 startup_timeout: float = 120, nvtx_enabled: bool = False):
         self.worker_id, self.tools = worker_id, tools
         self.startup_timeout = startup_timeout
+        self.nvtx_enabled = nvtx_enabled
         self.process: Any = None
         self.connection: Any = None
         self.generation = 0
@@ -69,7 +86,8 @@ class Worker:
     def _start(self) -> None:
         context = mp.get_context("spawn")
         self.connection, child = context.Pipe()
-        self.process = context.Process(target=_serve, args=(child, self.tools), daemon=True)
+        self.process = context.Process(
+            target=_serve, args=(child, self.tools, self.nvtx_enabled), daemon=True)
         try:
             self.process.start()
             child.close()
@@ -119,3 +137,25 @@ class Worker:
         except (TimeoutError, EOFError, BrokenPipeError, OSError):
             await self.close()
             raise
+
+    async def cpu_time(self) -> float:
+        """Read worker process CPU seconds through a control-only IPC message.
+
+        Take a baseline after worker warmup and subtract it from a later sample
+        to measure CPU consumed by the run without charging startup warmup.
+        """
+        if self.process is None or self.connection is None:
+            raise RuntimeError("CPU worker has not been started")
+        if not self.process.is_alive():
+            raise RuntimeError("CPU worker is not alive")
+        try:
+            reply = await asyncio.get_running_loop().run_in_executor(
+                self.io, self._exchange,
+                {"_worker_command": "cpu_time"}, self.startup_timeout)
+        except (TimeoutError, EOFError, BrokenPipeError, OSError):
+            await self.close()
+            raise
+        value = reply.get("worker_cpu_time_seconds")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise RuntimeError(reply.get("error", "CPU worker returned an invalid CPU time"))
+        return float(value)

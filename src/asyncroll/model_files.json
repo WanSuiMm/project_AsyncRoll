@@ -1,0 +1,21 @@
+{
+  "repository": "Qwen/Qwen2.5-Math-7B-Instruct",
+  "revision": "ef9926d75ab1d54532f6a30dd5e760355eb9aa4d",
+  "source": "Official Hugging Face repository blob/LFS object digests at the pinned revision",
+  "files": [
+    {"name": ".gitattributes", "size": 1519, "algorithm": "git_blob_sha1", "digest": "a6344aac8c09253b3b630fb776ae94478aa0275b"},
+    {"name": "LICENSE", "size": 11343, "algorithm": "git_blob_sha1", "digest": "6634c8cc3133b3848ec74b9f275acaaa1ea618ab"},
+    {"name": "README.md", "size": 4957, "algorithm": "git_blob_sha1", "digest": "6510216ec3a4f5c8396e826e08f5d533445f3a8e"},
+    {"name": "config.json", "size": 658, "algorithm": "git_blob_sha1", "digest": "742831f9f2092415f10d1514414f43568ed424f6"},
+    {"name": "generation_config.json", "size": 161, "algorithm": "git_blob_sha1", "digest": "2e57990ab56c363eb20fc8a5363ccdc66f795de3"},
+    {"name": "merges.txt", "size": 1671839, "algorithm": "git_blob_sha1", "digest": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0"},
+    {"name": "model-00001-of-00004.safetensors", "size": 3945441440, "algorithm": "sha256", "digest": "11f73294487dca1614bd7495e2c4e50372f5794f4cd175ce62d9ec2a8e97873a"},
+    {"name": "model-00002-of-00004.safetensors", "size": 3864726352, "algorithm": "sha256", "digest": "2b992a00b09340ac3f8e54db70509b709e2eef9f601e679682e3a50b496a7b08"},
+    {"name": "model-00003-of-00004.safetensors", "size": 3864726424, "algorithm": "sha256", "digest": "2460a589b1d606998574e0d84162e94307a15e2eea2aac6f4ea35f0361657660"},
+    {"name": "model-00004-of-00004.safetensors", "size": 3556377672, "algorithm": "sha256", "digest": "9e7925045deba3bb6ac461f1c2e7eabbe2a189549156dff1ec08b6c750a82bc5"},
+    {"name": "model.safetensors.index.json", "size": 27752, "algorithm": "git_blob_sha1", "digest": "14d037fdda5a1311dcc0275003a7a370d84114e6"},
+    {"name": "tokenizer.json", "size": 7031645, "algorithm": "git_blob_sha1", "digest": "443909a61d429dff23010e5bddd28ff530edda00"},
+    {"name": "tokenizer_config.json", "size": 7315, "algorithm": "git_blob_sha1", "digest": "2c722710e1e87b1affe215eef769b4f8fb2d5316"},
+    {"name": "vocab.json", "size": 2776833, "algorithm": "git_blob_sha1", "digest": "4783fe10ac3adce15ac8f358ef5462739852c569"}
+  ]
+}
